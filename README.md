@@ -7,7 +7,8 @@ Tags:
 
 # projet-java
 
-obsidian://open?vault=Obsidian%20Vault&file=2%20-%20Ressources%2FScreenshot%202024-11-21%20at%2019.33.47.png
+![Uploading Screenshot 2024-11-21 at 19.33.47.png…]()
+
 
 - ### packet capture basics
 - ### packet logger
