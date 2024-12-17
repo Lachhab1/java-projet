@@ -42,7 +42,7 @@ public class PacketCaptureManager {
         }
 
         try {
-            PcapNetworkInterface networkInterface = interfaceHandler.selectDefaultInterface();
+            PcapNetworkInterface networkInterface = interfaceHandler.getSelectedInterface();
             handle = networkInterface.openLive(65536,
                     PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 10);
 

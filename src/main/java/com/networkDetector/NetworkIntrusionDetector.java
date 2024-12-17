@@ -4,6 +4,7 @@ import com.networkDetector.capture.NetworkInterfaceHandler;
 import com.networkDetector.capture.PacketCaptureManager;
 import com.networkDetector.logging.NetworkLogger;
 import com.networkDetector.storage.PacketStorageManager;
+import org.pcap4j.core.PcapNativeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,6 +19,14 @@ public class NetworkIntrusionDetector {
         this.networkLogger = new NetworkLogger();
         this.storageManager = new PacketStorageManager();
         NetworkInterfaceHandler interfaceHandler = new NetworkInterfaceHandler();
+        //on peut extend cela á l'utulisation selection parmi choix o select default
+        try {
+            //interfaceHandler.selectDefaultInterface();
+            interfaceHandler.selectInterfaceByName("en0");
+        } catch (PcapNativeException e)
+        {
+            e.printStackTrace();
+        }
         this.captureManager = new PacketCaptureManager(interfaceHandler, networkLogger, storageManager);
     }
 

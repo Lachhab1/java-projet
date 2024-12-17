@@ -8,15 +8,26 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class PacketStorageManager {
     private static final Logger logger = LoggerFactory.getLogger(PacketStorageManager.class);
-    private static final int MAX_STORAGE_SIZE = 1000;
+    private static final int DEFAULT_STORAGE_SIZE = 1000;
 
-    private final ConcurrentLinkedQueue<Packet> packetQueue = new ConcurrentLinkedQueue<>();
+    private final int maxStorageSize;
+    private final ConcurrentLinkedQueue<Packet> packetQueue;
+
+    public PacketStorageManager() {
+        this(DEFAULT_STORAGE_SIZE);
+    }
+
+    public PacketStorageManager(int maxStorageSize) {
+        this.maxStorageSize = maxStorageSize;
+        this.packetQueue = new ConcurrentLinkedQueue<>();
+    }
 
     public void storePacket(Packet packet) {
-        if (packetQueue.size() >= MAX_STORAGE_SIZE) {
-            packetQueue.poll(); // Remove oldest packet if queue is full
+        if (packetQueue.size() >= maxStorageSize) {
+            packetQueue.poll(); // Supprimer le paquet le plus ancien si la limite est atteinte
         }
         packetQueue.offer(packet);
+        logger.info("Paquet stocké. Taille actuelle: {}", packetQueue.size());
     }
 
     public void clearStorage() {
