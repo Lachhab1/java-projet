@@ -1,10 +1,15 @@
 package com.networkDetector.capture;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.pcap4j.core.*;
+import org.pcap4j.packet.IpPacket;
 import org.pcap4j.packet.Packet;
+import org.pcap4j.packet.namednumber.ProtocolFamily;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -12,9 +17,10 @@ import java.util.concurrent.TimeUnit;
 
 public class NetworkCaptureModule {
     private static final Logger logger = LoggerFactory.getLogger(NetworkCaptureModule.class);
+    private static final ObjectMapper jsonMapper = new ObjectMapper();
 
-    // Configuration paramétrable
-    private static final int DEFAULT_PACKET_COUNT = 100;
+    // Enhanced configuration for SAN protocol
+    private static final int SAN_PORT = 3260; // Default iSCSI port for SAN
     private static final int SNAPSHOT_LENGTH = 65536;
     private static final int READ_TIMEOUT = 50;
 
@@ -23,131 +29,130 @@ public class NetworkCaptureModule {
     private ExecutorService executor;
     private PcapHandle handle;
 
+    // Add SAN protocol filter
+    private static final String SAN_FILTER = "port " + SAN_PORT;
+
     public NetworkCaptureModule() throws PcapNativeException {
-        // Afficher toutes les interfaces disponibles
+        listAvailableInterfaces();
+        initializeNetworkInterface();
+        configureSANFilter();
+    }
+
+    private void listAvailableInterfaces() throws PcapNativeException {
         List<PcapNetworkInterface> interfaces = Pcaps.findAllDevs();
-
         if (interfaces.isEmpty()) {
-            throw new PcapNativeException("Aucune interface réseau trouvée");
+            logger.warn("No network interfaces found");
+        } else {
+            logger.info("Available network interfaces:");
+            for (PcapNetworkInterface pcapNetworkInterface : interfaces) {
+                logger.info("Name: {}, Description: {}", pcapNetworkInterface.getName(), pcapNetworkInterface.getDescription());
+            }
         }
-
-        // Log de toutes les interfaces
-        for (PcapNetworkInterface inter : interfaces) {
-            logger.info("Interface disponible : {} ({})",
-                    inter.getName(),
-                    inter.getAddresses().stream().findFirst().map(Object::toString).orElse("No address")
-            );
-        }
-
-        // Sélection de l'interface par défaut
-        this.networkInterface = selectNetworkInterface(interfaces);
-        logger.info("Interface sélectionnée : {}", networkInterface.getName());
     }
 
-    /**
-    /**
-     * Sélection intelligente de l'interface réseau, priorisant 'en0'.
-     */
-    private PcapNetworkInterface selectNetworkInterface(List<PcapNetworkInterface> interfaces) {
-        // Rechercher l'interface 'en0' en priorité
-        return interfaces.stream()
-                .filter(inter -> "en0".equals(inter.getName()))
+    private void initializeNetworkInterface() throws PcapNativeException {
+        List<PcapNetworkInterface> interfaces = Pcaps.findAllDevs();
+        if (interfaces.isEmpty()) {
+            throw new PcapNativeException("No network interface found");
+        }
+
+        // Prioritize virtual interfaces for Cisco environment
+        this.networkInterface = interfaces.stream()
+                .filter(inter -> inter.getName().startsWith("veth") ||
+                        inter.getName().startsWith("bridge") ||
+                        inter.getName().equals("en0"))
                 .findFirst()
-                .orElseGet(() -> {
-                    // Sinon, préférer les interfaces non-loopback et actives
-                    return interfaces.stream()
-                            .filter(inter -> !inter.getName().contains("lo") &&
-                                    !inter.getName().contains("docker") &&
-                                    inter.isUp())
-                            .findFirst()
-                            .orElse(interfaces.get(0)); // Fallback à la première interface si aucune ne correspond
-                });
+                .orElse(interfaces.get(0));
+
+        logger.info("Selected interface: {} for SAN protocol capture", networkInterface.getName());
     }
 
+    private void configureSANFilter() throws PcapNativeException {
+        try {
+            if (handle != null) {
+                handle.setFilter(SAN_FILTER, BpfProgram.BpfCompileMode.OPTIMIZE);
+                logger.info("SAN protocol filter configured successfully");
+            }
+        } catch (NotOpenException e) {
+            logger.error("Error configuring SAN filter", e);
+        }
+    }
 
-    /**
-     * Démarrage de la capture de paquets
-     */
     public void startCapture() {
         if (isCapturing) {
-            logger.warn("La capture est déjà en cours");
+            logger.warn("Capture already in progress");
             return;
         }
 
         try {
-            // Mode promiscuous avec timeout configurable
-            PcapNetworkInterface.PromiscuousMode mode = PcapNetworkInterface.PromiscuousMode.PROMISCUOUS;
+            handle = networkInterface.openLive(
+                    SNAPSHOT_LENGTH,
+                    PcapNetworkInterface.PromiscuousMode.PROMISCUOUS,
+                    READ_TIMEOUT);
 
-            // Ouvrir l'interface réseau avec gestion explicite
-            handle = networkInterface.openLive(SNAPSHOT_LENGTH, mode, READ_TIMEOUT);
+            configureSANFilter();
 
             executor = Executors.newSingleThreadExecutor();
             isCapturing = true;
 
-            executor.submit(() -> {
-                try {
-                    capturePackets();
-                } catch (Exception e) {
-                    logger.error("Erreur lors de la capture", e);
-                } finally {
-                    stopCapture();
-                }
-            });
-
-            logger.info("Capture démarrée sur l'interface {}", networkInterface.getName());
+            executor.submit(this::captureAndProcessPackets);
+            logger.info("Started capturing SAN protocol packets on interface {}", networkInterface.getName());
         } catch (Exception e) {
-            logger.error("Impossible de démarrer la capture", e);
+            logger.error("Failed to start capture", e);
         }
     }
 
-    /**
-     * Logique de capture des paquets
-     */
-    private void capturePackets() throws PcapNativeException, NotOpenException {
-        int packetCount = 0;
-        while (isCapturing && packetCount < DEFAULT_PACKET_COUNT) {
-            Packet packet = handle.getNextPacket();
-            if (packet != null) {
-                processPacket(packet);
-                packetCount++;
-            }
-
-            // Petit délai pour réduire la charge CPU
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
-    }
-
-    /**
-     * Traitement avancé des paquets
-     */
-    private void processPacket(Packet packet) {
+    private void captureAndProcessPackets() {
         try {
-//            // Extraction et log des informations importantes
-            logger.info("Paquet capturé - Taille: {} octets", packet.length());
-             logger.info(packet.toString());
-
+            while (isCapturing) {
+                Packet packet = handle.getNextPacket();
+                if (packet != null) {
+                    processPacketToJson(packet);
+                }
+                Thread.sleep(10);
+            }
         } catch (Exception e) {
-            logger.error("Erreur lors du traitement du paquet", e);
+            logger.error("Error in packet capture loop", e);
+        } finally {
+            stopCapture();
         }
     }
 
-    /**
-     * Arrêt propre de la capture
-     */
+    private void processPacketToJson(Packet packet) {
+        try {
+            // Convert packet to JSON format
+            Map<String, Object> packetData = new HashMap<>();
+            packetData.put("timestamp", System.currentTimeMillis());
+            packetData.put("length", packet.length());
+            packetData.put("protocol", packet.getClass().getSimpleName());
+
+            // Extract IP-specific headers
+            IpPacket ipPacket = packet.get(IpPacket.class);
+            if (ipPacket != null) {
+                Map<String, Object> headers = new HashMap<>();
+                headers.put("source", ipPacket.getHeader().getSrcAddr().toString());
+                headers.put("destination", ipPacket.getHeader().getDstAddr().toString());
+                headers.put("type", ipPacket.getHeader().getProtocol().name());
+                packetData.put("headers", headers);
+            }
+
+            // Convert to JSON string
+            String jsonPacket = jsonMapper.writeValueAsString(packetData);
+            logger.info("Captured packet: {}", jsonPacket);
+
+            // Here you can add your custom processing logic for the JSON data
+            // For example, sending to a message queue or storage system
+
+        } catch (Exception e) {
+            logger.error("Error processing packet to JSON", e);
+        }
+    }
+
     public void stopCapture() {
         isCapturing = false;
-
-        // Fermer le handle réseau
         if (handle != null) {
             handle.close();
         }
-
-        // Arrêter l'executor
         if (executor != null) {
             executor.shutdown();
             try {
@@ -159,24 +164,6 @@ public class NetworkCaptureModule {
                 Thread.currentThread().interrupt();
             }
         }
-
-        logger.info("Capture réseau arrêtée");
+        logger.info("Network capture stopped");
     }
-
-    /**
-     * Méthode principale de test
-     */
-//    public static void main(String[] args) {
-//        try {
-//            NetworkCaptureModule captureModule = new NetworkCaptureModule();
-//            captureModule.startCapture();
-//
-//            // Capture pendant 10 secondes
-//            Thread.sleep(10000);
-//
-//            captureModule.stopCapture();
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//    }
 }

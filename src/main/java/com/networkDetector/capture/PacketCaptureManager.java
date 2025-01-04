@@ -27,8 +27,7 @@ public class PacketCaptureManager {
     public PacketCaptureManager(
             NetworkInterfaceHandler interfaceHandler,
             NetworkLogger networkLogger,
-            PacketStorageManager packetStorage
-    ) {
+            PacketStorageManager packetStorage) {
         this.interfaceHandler = interfaceHandler;
         this.networkLogger = networkLogger;
         this.packetStorage = packetStorage;
@@ -37,12 +36,41 @@ public class PacketCaptureManager {
 
     public void startCapture() {
         if (isCapturing) {
-            logger.warn("La capture est déjà en cours");
+            logger.warn("Capture is already in progress");
             return;
         }
 
         try {
             PcapNetworkInterface networkInterface = interfaceHandler.getSelectedInterface();
+            handle = networkInterface.openLive(65536,
+                    PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 1000);
+
+            executor = Executors.newSingleThreadExecutor();
+            isCapturing = true;
+
+            executor.submit(() -> {
+                try {
+                    capturePackets();
+                } catch (Exception e) {
+                    logger.error("Error during capture", e);
+                } finally {
+                    stopCapture();
+                }
+            });
+
+            logger.info("Capture started on interface {}", networkInterface.getName());
+        } catch (Exception e) {
+            logger.error("Unable to start capture", e);
+        }
+    }
+    
+    public void startCapture(PcapNetworkInterface networkInterface) {
+        if (isCapturing) {
+            logger.warn("Capture is already in progress");
+            return;
+        }
+
+        try {
             handle = networkInterface.openLive(65536,
                     PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 10);
 
@@ -53,28 +81,25 @@ public class PacketCaptureManager {
                 try {
                     capturePackets();
                 } catch (Exception e) {
-                    logger.error("Erreur lors de la capture", e);
+                    logger.error("Error during capture", e);
                 } finally {
                     stopCapture();
                 }
             });
 
-            logger.info("Capture démarrée sur l'interface {}", networkInterface.getName());
+            logger.info("Capture started on interface {}", networkInterface.getName());
         } catch (Exception e) {
-            logger.error("Impossible de démarrer la capture", e);
+            logger.error("Unable to start capture", e);
         }
     }
-
     private void capturePackets() throws PcapNativeException, NotOpenException {
-        int packetCount = 0;
         while (isCapturing) {
             Packet packet = handle.getNextPacket();
             if (packet != null && packetFilter.shouldProcessPacket(packet)) {
                 processPacket(packet);
-                packetCount++;
             }
 
-            // Petit délai pour réduire la charge CPU
+            // Small delay to reduce CPU load
             try {
                 Thread.sleep(10);
             } catch (InterruptedException e) {
@@ -86,13 +111,13 @@ public class PacketCaptureManager {
 
     private void processPacket(Packet packet) {
         try {
-            // Stocker le paquet
+            // Store the packet
             packetStorage.storePacket(packet);
 
-            // Log détaillé
+            // Detailed log
             networkLogger.logPacket(packet);
         } catch (Exception e) {
-            logger.error("Erreur lors du traitement du paquet", e);
+            logger.error("Error processing packet", e);
         }
     }
 
@@ -115,6 +140,12 @@ public class PacketCaptureManager {
             }
         }
 
-        logger.info("Capture réseau arrêtée");
+        logger.info("Network capture stopped");
+    }
+
+    public String getStatistics() {
+        // Implement your logic to return statistics
+
+        return "Statistics not implemented yet";
     }
 }
