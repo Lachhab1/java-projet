@@ -1,6 +1,7 @@
 package com.networkDetector.ui;
 
 import com.networkDetector.NetworkIntrusionDetector;
+import com.networkDetector.storage.PacketDTO;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -11,10 +12,10 @@ import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
-import javafx.scene.paint.Color;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.chart.PieChart;
+import javafx.scene.control.cell.PropertyValueFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.pcap4j.core.PcapNetworkInterface;
 import org.pcap4j.core.PcapNativeException;
@@ -24,7 +25,7 @@ public class NetworkIntrusionDetectorUI extends Application {
     private NetworkIntrusionDetector detector;
     private TextArea packetTextArea;
     private Label statsLabel;
-    private TableView<PacketEntry> packetTable;
+    private TableView<PacketDTO> packetTable; // Updated to use PacketDTO
     private LineChart<Number, Number> trafficChart;
     private PieChart protocolChart;
     private XYChart.Series<Number, Number> trafficSeries;
@@ -178,11 +179,22 @@ public class NetworkIntrusionDetectorUI extends Application {
 
         // Packet Table
         packetTable = new TableView<>();
-        TableColumn<PacketEntry, String> timeCol = new TableColumn<>("Time");
-        TableColumn<PacketEntry, String> protocolCol = new TableColumn<>("Protocol");
-        TableColumn<PacketEntry, String> sourceCol = new TableColumn<>("Source");
-        TableColumn<PacketEntry, String> destCol = new TableColumn<>("Destination");
-        TableColumn<PacketEntry, Integer> lengthCol = new TableColumn<>("Length");
+
+        // Define columns for PacketDTO
+        TableColumn<PacketDTO, String> timeCol = new TableColumn<>("Time");
+        timeCol.setCellValueFactory(new PropertyValueFactory<>("timestamp"));
+
+        TableColumn<PacketDTO, String> protocolCol = new TableColumn<>("Protocol");
+        protocolCol.setCellValueFactory(new PropertyValueFactory<>("protocol"));
+
+        TableColumn<PacketDTO, String> sourceCol = new TableColumn<>("Source");
+        sourceCol.setCellValueFactory(new PropertyValueFactory<>("sourceAddress"));
+
+        TableColumn<PacketDTO, String> destCol = new TableColumn<>("Destination");
+        destCol.setCellValueFactory(new PropertyValueFactory<>("destinationAddress"));
+
+        TableColumn<PacketDTO, Integer> lengthCol = new TableColumn<>("Length");
+        lengthCol.setCellValueFactory(new PropertyValueFactory<>("length"));
 
         packetTable.getColumns().addAll(timeCol, protocolCol, sourceCol, destCol, lengthCol);
 
@@ -270,10 +282,14 @@ public class NetworkIntrusionDetectorUI extends Application {
 
     private void updateUI() {
         // Update packet display
-        List<String> newPackets = detector.getCapturedPackets();
+        List<PacketDTO> capturedPackets = detector.getCapturedPackets(); // Assuming this returns List<PacketDTO>
+        ObservableList<PacketDTO> packetEntries = FXCollections.observableArrayList(capturedPackets);
+        packetTable.setItems(packetEntries);
+
+        // Update packet details
         StringBuilder packetBuilder = new StringBuilder();
-        for (String packet : newPackets) {
-            packetBuilder.append(packet).append("\n");
+        for (PacketDTO packet : capturedPackets) {
+            packetBuilder.append(packet.toString()).append("\n");
         }
         packetTextArea.setText(packetBuilder.toString());
 
@@ -297,16 +313,6 @@ public class NetworkIntrusionDetectorUI extends Application {
         trafficSeries.getData().clear();
         xSeriesData.set(0);
         statusLabel.setText("Data cleared");
-    }
-
-    private static class PacketEntry {
-        private String time;
-        private String protocol;
-        private String source;
-        private String destination;
-        private int length;
-
-        // Constructor and getters/setters
     }
 
     private void showError(String title, Exception e) {

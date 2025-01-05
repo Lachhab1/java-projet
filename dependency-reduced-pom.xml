@@ -17,6 +17,18 @@
         </configuration>
       </plugin>
       <plugin>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-maven-plugin</artifactId>
+        <version>0.0.8</version>
+        <configuration>
+          <mainClass>com.networkDetector.ui.NetworkIntrusionDetectorUI</mainClass>
+          <options>
+            <option>-Xms512m</option>
+            <option>-Xmx2048m</option>
+          </options>
+        </configuration>
+      </plugin>
+      <plugin>
         <artifactId>maven-shade-plugin</artifactId>
         <version>3.4.1</version>
         <executions>
@@ -25,6 +37,13 @@
             <goals>
               <goal>shade</goal>
             </goals>
+            <configuration>
+              <transformers>
+                <transformer>
+                  <mainClass>com.networkDetector.ui.NetworkIntrusionDetectorUI</mainClass>
+                </transformer>
+              </transformers>
+            </configuration>
           </execution>
         </executions>
       </plugin>

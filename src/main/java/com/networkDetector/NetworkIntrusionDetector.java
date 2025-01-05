@@ -3,6 +3,7 @@ package com.networkDetector;
 import com.networkDetector.capture.NetworkInterfaceHandler;
 import com.networkDetector.capture.PacketCaptureManager;
 import com.networkDetector.logging.NetworkLogger;
+import com.networkDetector.storage.PacketDTO;
 import com.networkDetector.storage.PacketStorageManager;
 import org.pcap4j.core.PcapNetworkInterface;
 import org.pcap4j.core.PcapNativeException;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -21,7 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class NetworkIntrusionDetector {
     private static final Logger logger = LoggerFactory.getLogger(NetworkIntrusionDetector.class);
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 5;
-    private static final String DEFAULT_INTERFACE = "en0";
+    private static final String DEFAULT_INTERFACE = "Ethernet";
 
     private final PacketCaptureManager captureManager;
     private final NetworkLogger networkLogger;
@@ -39,7 +41,7 @@ public class NetworkIntrusionDetector {
 
         // Initialize interface handler with better error handling
         try {
-            PcapNetworkInterface defaultInterface = interfaceHandler.selectInterfaceByName(DEFAULT_INTERFACE);
+            PcapNetworkInterface defaultInterface = interfaceHandler.selectDefaultInterface();
             if (defaultInterface != null) {
                 interfaceHandler.selectDefaultInterface();
             } else {
@@ -124,9 +126,9 @@ public class NetworkIntrusionDetector {
         monitoringExecutor.submit(() -> {
             while (isRunning.get() && !Thread.currentThread().isInterrupted()) {
                 try {
-                    List<String> packets = getCapturedPackets();
+                    List<PacketDTO> packets = getCapturedPackets();
                     if (!packets.isEmpty()) {
-                        logger.debug("Currently captured packets: {}", packets.size());
+                        logger.debug("Currently captured packets: {}", Optional.of(packets.size()));
                     }
                     TimeUnit.SECONDS.sleep(5);
                 } catch (InterruptedException e) {
@@ -137,7 +139,7 @@ public class NetworkIntrusionDetector {
         });
     }
 
-    public List<String> getCapturedPackets() {
+    public List<PacketDTO> getCapturedPackets() {
         return storageManager.getCapturedPackets();
     }
 
@@ -150,7 +152,7 @@ public class NetworkIntrusionDetector {
     }
 
     public void printCapturedPacketsJson() {
-        List<String> packets = getCapturedPackets();
+        List<PacketDTO> packets = getCapturedPackets();
         if (packets.isEmpty()) {
             System.out.println("No packets captured yet");
             return;
@@ -164,41 +166,41 @@ public class NetworkIntrusionDetector {
     }
 
     public void savePacketsToFile(String filename) throws IOException {
-        List<String> packets = getCapturedPackets();
-        Files.write(Paths.get(filename), packets);
+        List<PacketDTO> packets = getCapturedPackets();
+        List<String> packetJsonList = packets.stream()
+                .map(PacketDTO::toString)
+                .toList();
+        Files.write(Paths.get(filename), packetJsonList);
     }
 
-//    public static void main(String[] args) {
-//        NetworkIntrusionDetector detector = new NetworkIntrusionDetector();
-//        // Improved shutdown hook
-//        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-//            logger.info("Shutdown hook triggered, stopping detector...");
-//            detector.stop();
-//
-//        }));
-//
-//        try {
-//            NetworkInterfaceHandler interfaceHandler = new NetworkInterfaceHandler();
-//            PcapNetworkInterface defaultInterface = interfaceHandler.selectInterfaceByName(DEFAULT_INTERFACE);
-//            if (defaultInterface != null) {
-//                interfaceHandler.selectDefaultInterface();
-//            } else {
-//                logger.warn("Default interface {} not found, will select first available interface", DEFAULT_INTERFACE);
-//            }
-//
-//            detector.startCapture(defaultInterface);
-//            // Print JSON every 10 seconds
-//            while (true) {
-//                Thread.sleep(30000);
-//                // detector.printCapturedPacketsJson();
-//                // Save packets to file every 30 seconds
-//                detector.savePacketsToFile("captured_packets.json");
-//
-//            }
-//
-//        } catch (Exception e) {
-//            logger.error("Failed to start detector: {}", e.getMessage());
-//            System.exit(1);
-//        }
-//    }
+    public static void main(String[] args) {
+        NetworkIntrusionDetector detector = new NetworkIntrusionDetector();
+        // Improved shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            logger.info("Shutdown hook triggered, stopping detector...");
+            detector.stop();
+        }));
+
+        try {
+            NetworkInterfaceHandler interfaceHandler = new NetworkInterfaceHandler();
+            PcapNetworkInterface defaultInterface = interfaceHandler.selectInterfaceByName(DEFAULT_INTERFACE);
+            if (defaultInterface != null) {
+                interfaceHandler.selectDefaultInterface();
+            } else {
+                logger.warn("Default interface {} not found, will select first available interface", DEFAULT_INTERFACE);
+            }
+
+            detector.startCapture(defaultInterface);
+            // Print JSON every 10 seconds
+            while (true) {
+                Thread.sleep(30000);
+                detector.printCapturedPacketsJson();
+                // Save packets to file every 30 seconds
+                detector.savePacketsToFile("captured_packets.json");
+            }
+        } catch (Exception e) {
+            logger.error("Failed to start detector: {}", e.getMessage());
+            System.exit(1);
+        }
+    }
 }

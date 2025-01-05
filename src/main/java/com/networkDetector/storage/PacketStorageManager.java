@@ -36,13 +36,6 @@ public class PacketStorageManager {
             }
             packetQueue.offer(packetDTO);
 
-//            if (logger.isDebugEnabled()) {
-//                logger.debug("Stored packet: {}", packetDTO);
-//            }
-//
-//            if (packetQueue.size() % 100 == 0) {
-//                logger.info("Packet queue size: {}", packetQueue.size());
-//            }
             // Log each packet as JSON
             String jsonPacket = objectMapper.writeValueAsString(packetDTO);
             logger.info("Stored packet JSON: {}", jsonPacket);
@@ -51,21 +44,13 @@ public class PacketStorageManager {
         }
     }
 
-    public List<String> getCapturedPackets() {
+    public List<PacketDTO> getCapturedPackets() {
         try {
             return packetQueue.stream()
-                    .map(packet -> {
-                        try {
-                            return objectMapper.writeValueAsString(packet);
-                        } catch (JsonProcessingException e) {
-                            logger.error("Error converting packet to JSON: {}", e.getMessage());
-                            return "Error converting packet to JSON";
-                        }
-                    })
                     .collect(Collectors.toList());
         } catch (Exception e) {
             logger.error("Error getting captured packets: {}", e.getMessage());
-            return List.of("Error retrieving packets");
+            return List.of(); // Return an empty list in case of error
         }
     }
 
