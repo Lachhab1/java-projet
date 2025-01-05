@@ -11,7 +11,6 @@ import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
-import javafx.scene.paint.Color;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.chart.PieChart;
@@ -98,6 +97,39 @@ public class NetworkIntrusionDetectorUI extends Application {
         }
     }
 
+    // thread for capture
+    private volatile Thread captureThread;
+
+    public void startCaptureOnThread(NetworkInterfaceItem selectedInterfaceItem) {
+        if (captureThread != null && captureThread.isAlive()) {
+            showError("Capture Error", new IllegalStateException("Capture already running"));
+            return;
+        }
+
+        captureThread = new Thread(() -> {
+            try {
+//                detector.start();
+                detector.startCapture(selectedInterfaceItem.getNetworkInterface());
+                Platform.runLater(() -> statusLabel.setText(
+                        "Capturing packets on " + selectedInterfaceItem.getNetworkInterface().getName()));
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    showError("Capture Error", e);
+                    statusLabel.setText("Capture stopped due to error");
+                });
+            } finally {
+                // Ensure cleanup happens
+                if (detector != null) {
+                    detector.stop();
+                }
+                Platform.runLater(() -> statusLabel.setText("Capture stopped"));
+            }
+        });
+
+        captureThread.setDaemon(true); // Allow JVM to exit if thread is running
+        captureThread.start();
+    }
+
     private void populateInterfaceComboBox() {
         try {
             List<PcapNetworkInterface> interfaces = detector.getAvailableInterfaces();
@@ -133,17 +165,18 @@ public class NetworkIntrusionDetectorUI extends Application {
                 showError("No Interface Selected", "Please select a network interface before starting capture.");
                 return;
             }
+            startCaptureOnThread(selectedInterface);
+            // new Thread(() -> {
+            // try {
+            // detector.startCapture(selectedInterface.getNetworkInterface());
 
-            new Thread(() -> {
-                try {
-                    detector.startCapture(selectedInterface.getNetworkInterface());
-
-                    Platform.runLater(() -> statusLabel
-                            .setText("Capturing packets on " + selectedInterface.getNetworkInterface().getName()));
-                } catch (Exception e) {
-                    Platform.runLater(() -> showError("Capture Error", e));
-                }
-            }).start();
+            // Platform.runLater(() -> statusLabel
+            // .setText("Capturing packets on " +
+            // selectedInterface.getNetworkInterface().getName()));
+            // } catch (Exception e) {
+            // Platform.runLater(() -> showError("Capture Error", e));
+            // }
+            // }).start();
         });
 
         Button stopButton = new Button("Stop Capture");

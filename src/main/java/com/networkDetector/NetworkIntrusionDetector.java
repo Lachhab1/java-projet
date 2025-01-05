@@ -5,6 +5,7 @@ import com.networkDetector.capture.PacketCaptureManager;
 import com.networkDetector.logging.NetworkLogger;
 import com.networkDetector.storage.PacketStorageManager;
 import org.pcap4j.core.PcapNetworkInterface;
+import org.pcap4j.core.PcapHandle;
 import org.pcap4j.core.PcapNativeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,11 +57,32 @@ public class NetworkIntrusionDetector {
         if (isRunning.compareAndSet(false, true)) {
             try {
                 logger.info("Starting network intrusion detector on interface {}", networkInterface.getName());
-                interfaceHandler.selectInterfaceByName(networkInterface.getName());
-                captureManager.startCapture(networkInterface);
-                startMonitoring();
+
+                // Set proper handle options
+                int snapLen = 65536;
+                int timeout = 1000;
+                PcapNetworkInterface.PromiscuousMode mode = PcapNetworkInterface.PromiscuousMode.PROMISCUOUS;
+
+                // Initialize the handle within a try-with-resources
+                try (PcapHandle handle = networkInterface.openLive(snapLen, mode, timeout)) {
+                    interfaceHandler.selectInterfaceByName(networkInterface.getName());
+                    captureManager.startCapture(networkInterface);
+                    startMonitoring();
+
+                    // Keep the handle open while capturing
+                    while (isRunning.get()) {
+                        try {
+                            handle.getNextPacket();
+                            Thread.sleep(100); // Prevent CPU overload
+                        } catch (InterruptedException e) {
+                            logger.warn("Capture interrupted", e);
+                            break;
+                        }
+                    }
+                }
+
             } catch (Exception e) {
-                logger.error("Failed to start capture: {}", e.getMessage());
+                logger.error("Failed to start capture: {}", e.getMessage(), e);
                 isRunning.set(false);
                 throw new RuntimeException("Failed to start capture", e);
             }
@@ -168,37 +190,43 @@ public class NetworkIntrusionDetector {
         Files.write(Paths.get(filename), packets);
     }
 
-//    public static void main(String[] args) {
-//        NetworkIntrusionDetector detector = new NetworkIntrusionDetector();
-//        // Improved shutdown hook
-//        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-//            logger.info("Shutdown hook triggered, stopping detector...");
-//            detector.stop();
-//
-//        }));
-//
-//        try {
-//            NetworkInterfaceHandler interfaceHandler = new NetworkInterfaceHandler();
-//            PcapNetworkInterface defaultInterface = interfaceHandler.selectInterfaceByName(DEFAULT_INTERFACE);
-//            if (defaultInterface != null) {
-//                interfaceHandler.selectDefaultInterface();
-//            } else {
-//                logger.warn("Default interface {} not found, will select first available interface", DEFAULT_INTERFACE);
-//            }
-//
-//            detector.startCapture(defaultInterface);
-//            // Print JSON every 10 seconds
-//            while (true) {
-//                Thread.sleep(30000);
-//                // detector.printCapturedPacketsJson();
-//                // Save packets to file every 30 seconds
-//                detector.savePacketsToFile("captured_packets.json");
-//
-//            }
-//
-//        } catch (Exception e) {
-//            logger.error("Failed to start detector: {}", e.getMessage());
-//            System.exit(1);
-//        }
-//    }
+    // get interface handler
+    public NetworkInterfaceHandler getInterfaceHandler() {
+        return interfaceHandler;
+    }
+
+     public static void main(String[] args) {
+     NetworkIntrusionDetector detector = new NetworkIntrusionDetector();
+     // Improved shutdown hook
+     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+     logger.info("Shutdown hook triggered, stopping detector...");
+     detector.stop();
+
+     }));
+
+     try {
+     NetworkInterfaceHandler interfaceHandler = new NetworkInterfaceHandler();
+     PcapNetworkInterface defaultInterface =
+     interfaceHandler.selectInterfaceByName(DEFAULT_INTERFACE);
+     if (defaultInterface != null) {
+     interfaceHandler.selectDefaultInterface();
+     } else {
+     logger.warn("Default interface {} not found, will select first available interface", DEFAULT_INTERFACE);
+     }
+
+     detector.startCapture(defaultInterface);
+     // Print JSON every 10 seconds
+     while (true) {
+     Thread.sleep(30000);
+     // detector.printCapturedPacketsJson();
+     // Save packets to file every 30 seconds
+     detector.savePacketsToFile("captured_packets.json");
+
+     }
+
+     } catch (Exception e) {
+     logger.error("Failed to start detector: {}", e.getMessage());
+     System.exit(1);
+     }
+     }
 }

@@ -1,13 +1,6 @@
-// PacketDTO.java
 package com.networkDetector.storage;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.pcap4j.packet.IpV4Packet;
-import org.pcap4j.packet.Packet;
-import org.pcap4j.packet.TcpPacket;
-import org.pcap4j.packet.UdpPacket;
-
-import java.time.Instant;
 
 public class PacketDTO {
     private final String timestamp;
@@ -39,14 +32,37 @@ public class PacketDTO {
     }
 
     // Getters
-    public String getTimestamp() { return timestamp; }
-    public String getProtocol() { return protocol; }
-    public String getSourceAddress() { return sourceAddress; }
-    public String getDestinationAddress() { return destinationAddress; }
-    public Integer getSourcePort() { return sourcePort; }
-    public Integer getDestinationPort() { return destinationPort; }
-    public Long getLength() { return length; }
-    public String getPacketType() { return packetType; }
+    public String getTimestamp() {
+        return timestamp;
+    }
+
+    public String getProtocol() {
+        return protocol;
+    }
+
+    public String getSourceAddress() {
+        return sourceAddress;
+    }
+
+    public String getDestinationAddress() {
+        return destinationAddress;
+    }
+
+    public Integer getSourcePort() {
+        return sourcePort;
+    }
+
+    public Integer getDestinationPort() {
+        return destinationPort;
+    }
+
+    public Long getLength() {
+        return length;
+    }
+
+    public String getPacketType() {
+        return packetType;
+    }
 
     @Override
     public String toString() {

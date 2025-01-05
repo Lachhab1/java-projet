@@ -8,21 +8,23 @@ import org.pcap4j.packet.Packet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class PacketCaptureManager {
     private static final Logger logger = LoggerFactory.getLogger(PacketCaptureManager.class);
+    private static final int SNAPLEN = 65536;
+    private static final int TIMEOUT = 1000;
 
     private final NetworkInterfaceHandler interfaceHandler;
     private final AdvancedPacketFilter packetFilter;
     private final PacketStorageManager packetStorage;
     private final NetworkLogger networkLogger;
 
-    private volatile boolean isCapturing = false;
-    private ExecutorService executor;
-    private PcapHandle handle;
+    private final AtomicBoolean isCapturing = new AtomicBoolean(false);
+    private volatile ExecutorService executor;
+    private volatile PcapHandle handle;
+    private final Object lock = new Object();
 
     public PacketCaptureManager(
             NetworkInterfaceHandler interfaceHandler,
@@ -34,87 +36,100 @@ public class PacketCaptureManager {
         this.packetFilter = new AdvancedPacketFilter(networkLogger);
     }
 
-    public void startCapture() {
-        if (isCapturing) {
-            logger.warn("Capture is already in progress");
-            return;
-        }
+    // Add back the overloaded method
+    public void startCapture(PcapNetworkInterface networkInterface) {
+        synchronized (lock) {
+            if (isCapturing.get()) {
+                logger.warn("Capture is already in progress");
+                return;
+            }
 
+            try {
+                if (networkInterface == null) {
+                    throw new IllegalStateException("Network interface cannot be null");
+                }
+
+                // Create new executor if necessary
+                if (executor == null || executor.isShutdown()) {
+                    executor = Executors.newSingleThreadExecutor(r -> {
+                        Thread thread = new Thread(r, "PacketCapture-Thread");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+                }
+
+                // Open new handle
+                handle = networkInterface.openLive(
+                        SNAPLEN,
+                        PcapNetworkInterface.PromiscuousMode.PROMISCUOUS,
+                        TIMEOUT
+                );
+
+                isCapturing.set(true);
+
+                // Submit capture task with error handling
+                executor.submit(() -> {
+                    try {
+                        capturePackets();
+                    } catch (Exception ex) {
+                        logger.error("Capture task failed", ex);
+                        stopCapture();
+                    }
+                });
+
+                logger.info("Capture started on interface {}", networkInterface.getName());
+            } catch (Exception e) {
+                logger.error("Unable to start capture", e);
+                cleanupResources();
+                throw new RuntimeException("Failed to start capture", e);
+            }
+        }
+    }
+
+    public void startCapture() {
         try {
             PcapNetworkInterface networkInterface = interfaceHandler.getSelectedInterface();
-            handle = networkInterface.openLive(65536,
-                    PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 1000);
-
-            executor = Executors.newSingleThreadExecutor();
-            isCapturing = true;
-
-            executor.submit(() -> {
-                try {
-                    capturePackets();
-                } catch (Exception e) {
-                    logger.error("Error during capture", e);
-                } finally {
-                    stopCapture();
-                }
-            });
-
-            logger.info("Capture started on interface {}", networkInterface.getName());
+            if (networkInterface == null) {
+                throw new IllegalStateException("No network interface selected");
+            }
+            startCapture(networkInterface);
         } catch (Exception e) {
             logger.error("Unable to start capture", e);
+            throw new RuntimeException("Failed to start capture", e);
         }
     }
-    
-    public void startCapture(PcapNetworkInterface networkInterface) {
-        if (isCapturing) {
-            logger.warn("Capture is already in progress");
-            return;
-        }
 
+    private void capturePackets() {
         try {
-            handle = networkInterface.openLive(65536,
-                    PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 10);
-
-            executor = Executors.newSingleThreadExecutor();
-            isCapturing = true;
-
-            executor.submit(() -> {
+            while (isCapturing.get() && handle != null && handle.isOpen()) {
                 try {
-                    capturePackets();
-                } catch (Exception e) {
-                    logger.error("Error during capture", e);
-                } finally {
-                    stopCapture();
+                    Packet packet = handle.getNextPacket();
+                    if (packet != null && packetFilter.shouldProcessPacket(packet)) {
+                        processPacket(packet);
+                    }
+
+                    // Small delay to prevent CPU overload
+                    Thread.sleep(10);
+                } catch (NotOpenException e) {
+                    if (isCapturing.get()) {
+                        logger.error("Handle closed unexpectedly", e);
+                        break;
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
-            });
-
-            logger.info("Capture started on interface {}", networkInterface.getName());
+            }
         } catch (Exception e) {
-            logger.error("Unable to start capture", e);
-        }
-    }
-    private void capturePackets() throws PcapNativeException, NotOpenException {
-        while (isCapturing) {
-            Packet packet = handle.getNextPacket();
-            if (packet != null && packetFilter.shouldProcessPacket(packet)) {
-                processPacket(packet);
-            }
-
-            // Small delay to reduce CPU load
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
+            logger.error("Error in capture loop", e);
+        } finally {
+            cleanupResources();
         }
     }
 
     private void processPacket(Packet packet) {
         try {
-            // Store the packet
             packetStorage.storePacket(packet);
-
-            // Detailed log
             networkLogger.logPacket(packet);
         } catch (Exception e) {
             logger.error("Error processing packet", e);
@@ -122,30 +137,63 @@ public class PacketCaptureManager {
     }
 
     public void stopCapture() {
-        isCapturing = false;
+        synchronized (lock) {
+            if (!isCapturing.get()) {
+                return;
+            }
 
+            isCapturing.set(false);
+            cleanupResources();
+            logger.info("Network capture stopped");
+        }
+    }
+
+    private void cleanupResources() {
+        // Close handle
         if (handle != null) {
-            handle.close();
+            try {
+                if (handle.isOpen()) {
+                    handle.close();
+                }
+            } catch (Exception e) {
+                logger.warn("Error closing handle", e);
+            } finally {
+                handle = null;
+            }
         }
 
-        if (executor != null) {
-            executor.shutdown();
+        // Shutdown executor
+        if (executor != null && !executor.isShutdown()) {
             try {
-                if (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
+                executor.shutdown();
+                if (!executor.awaitTermination(2, TimeUnit.SECONDS)) {
                     executor.shutdownNow();
                 }
             } catch (InterruptedException e) {
                 executor.shutdownNow();
                 Thread.currentThread().interrupt();
+            } finally {
+                executor = null;
             }
         }
+    }
 
-        logger.info("Network capture stopped");
+    public boolean isCapturing() {
+        return isCapturing.get();
     }
 
     public String getStatistics() {
-        // Implement your logic to return statistics
-
-        return "Statistics not implemented yet";
+        if (handle != null && handle.isOpen()) {
+            try {
+                PcapStat stats = handle.getStats();
+                return String.format("Received: %d, Dropped: %d, Interface Dropped: %d",
+                        stats.getNumPacketsReceived(),
+                        stats.getNumPacketsDropped(),
+                        stats.getNumPacketsDroppedByIf());
+            } catch (PcapNativeException | NotOpenException e) {
+                logger.error("Unable to get statistics", e);
+            }
+        }
+        return "Statistics unavailable";
     }
 }
