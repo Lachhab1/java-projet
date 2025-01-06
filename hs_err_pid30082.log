@@ -1,0 +1,98 @@
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x0000000101e7eb84, pid=30082, tid=31747
+#
+# JRE version: OpenJDK Runtime Environment Homebrew (23.0.1) (build 23.0.1)
+# Java VM: OpenJDK 64-Bit Server VM Homebrew (23.0.1, mixed mode, sharing, tiered, compressed oops, compressed class ptrs, g1 gc, bsd-aarch64)
+# Problematic frame:
+# C  [AppleMetalOpenGLRenderer+0x4eb84]  invocation function for block in GLDContextRec::flushContextInternal()+0xc0
+#
+# No core dump will be written. Core dumps have been disabled. To enable core dumping, try "ulimit -c unlimited" before starting Java again
+#
+# If you would like to submit a bug report, please visit:
+#   https://github.com/Homebrew/homebrew-core/issues
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: -Xms512m -Xmx2048m --module-path=/var/root/.m2/repository/org/openjfx/javafx-base/23.0.1/javafx-base-23.0.1-mac-aarch64.jar:/var/root/.m2/repository/org/openjfx/javafx-base/23.0.1/javafx-base-23.0.1.jar:/var/root/.m2/repository/org/openjfx/javafx-controls/23.0.1/javafx-controls-23.0.1-mac-aarch64.jar:/var/root/.m2/repository/org/openjfx/javafx-controls/23.0.1/javafx-controls-23.0.1.jar:/var/root/.m2/repository/org/openjfx/javafx-fxml/23.0.1/javafx-fxml-23.0.1-mac-aarch64.jar:/var/root/.m2/repository/org/openjfx/javafx-fxml/23.0.1/javafx-fxml-23.0.1.jar:/var/root/.m2/repository/org/openjfx/javafx-graphics/23.0.1/javafx-graphics-23.0.1-mac-aarch64.jar:/var/root/.m2/repository/org/openjfx/javafx-graphics/23.0.1/javafx-graphics-23.0.1.jar --add-modules=javafx.base,javafx.controls,javafx.fxml,javafx.graphics com.networkDetector.ui.NetworkIntrusionDetectorUI
+
+Host: "MacBookPro17,1" arm64, 8 cores, 8G, Darwin 24.2.0, macOS 15.2 (24C101)
+Time: Mon Jan  6 08:50:19 2025 +01 elapsed time: 5.512827 seconds (0d 0h 0m 5s)
+
+---------------  T H R E A D  ---------------
+
+Current thread is native thread
+
+Stack: [0x000000016ff44000,0x000000016ffc7000],  sp=0x000000016ffc6360,  free space=520k
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+C  [AppleMetalOpenGLRenderer+0x4eb84]  invocation function for block in GLDContextRec::flushContextInternal()+0xc0
+C  [Metal+0x21928]  MTLDispatchListApply+0x34
+C  [Metal+0x21d7c]  -[_MTLCommandBuffer didCompleteWithStartTime:endTime:error:]+0x260
+C  [IOGPU+0x33fc]  -[IOGPUMetalCommandBuffer didCompleteWithStartTime:endTime:error:]+0xd8
+C  [Metal+0x219c0]  -[_MTLCommandQueue commandBufferDidComplete:startTime:completionTime:error:]+0x6c
+C  [IOGPU+0x10500]  IOGPUNotificationQueueDispatchAvailableCompletionNotifications+0x88
+C  [IOGPU+0x10610]  __IOGPUNotificationQueueSetDispatchQueue_block_invoke+0x40
+C  [libdispatch.dylib+0x4674]  _dispatch_client_callout4+0x14
+C  [libdispatch.dylib+0x20c88]  _dispatch_mach_msg_invoke+0x1d0
+C  [libdispatch.dylib+0xba38]  _dispatch_lane_serial_drain+0x160
+C  [libdispatch.dylib+0x219dc]  _dispatch_mach_invoke+0x1c8
+C  [libdispatch.dylib+0xba38]  _dispatch_lane_serial_drain+0x160
+C  [libdispatch.dylib+0xc764]  _dispatch_lane_invoke+0x1b0
+C  [libdispatch.dylib+0xba38]  _dispatch_lane_serial_drain+0x160
+C  [libdispatch.dylib+0xc730]  _dispatch_lane_invoke+0x17c
+C  [libdispatch.dylib+0x179a0]  _dispatch_root_queue_drain_deferred_wlh+0x120
+C  [libdispatch.dylib+0x171ec]  _dispatch_workloop_worker_thread+0x21c
+C  [libsystem_pthread.dylib+0x33d8]  _pthread_wqthread+0x120
+
+siginfo: si_signo: 11 (SIGSEGV), si_code: 2 (SEGV_ACCERR), si_addr: 0x0000000000000018
+
+Registers:
+ x0=0x0000000000000000  x1=0x0000000000000000  x2=0x0000006bf7e064ea  x3=0x0000006bf7e0d42f
+ x4=0x0000000000000000  x5=0x0000000000000000  x6=0x0000000000000000  x7=0x000000018c5b76b4
+ x8=0x0000000000000000  x9=0x00000002007a27e3 x10=0x0000000246435efb x11=0x000000000000003f
+x12=0x0000000000000023 x13=0x0000000160443a20 x14=0x02000001267d4119 x15=0x00000001267d4118
+x16=0x000000018c3861d0 x17=0x00000001fe707aa8 x18=0x0000000000000000 x19=0x0000600002dbac10
+x20=0x0000600000f249c0 x21=0x0000000158008000 x22=0x00000001f3e86000 x23=0x0000000000000000
+x24=0x0000000156126800 x25=0x000000016ffc70e0 x26=0x000000016ffc6630 x27=0x00006000018e20a8
+x28=0x0000000000000000  fp=0x000000016ffc6390  lr=0x0000000101e7eaec  sp=0x000000016ffc6360
+pc=0x0000000101e7eb84 cpsr=0x0000000080001000
+
+Top of Stack: (sp=0x000000016ffc6360)
+0x000000016ffc6360:   0000000000000310 00000000000002a0
+0x000000016ffc6370:   00000001f3e86000 0000000000000000
+0x000000016ffc6380:   0000600000f249c0 0000000153a0c5e0
+0x000000016ffc6390:   000000016ffc63c0 000000019760a928
+0x000000016ffc63a0:   00000001f3e86000 0000000085300011
+0x000000016ffc63b0:   0000000000000038 0000000153a0c5e0
+0x000000016ffc63c0:   000000016ffc6420 000000019760ad7c
+0x000000016ffc63d0:   000000016ffc6400 000000018c3b6070
+0x000000016ffc63e0:   000000016ffc6630 000000016ffc70e0
+0x000000016ffc63f0:   0000000156126800 0000000156126800
+0x000000016ffc6400:   0000006bf7e064ea 0000006bf7e0d42f
+0x000000016ffc6410:   0000000000000000 0000000153a0c5e0
+0x000000016ffc6420:   000000016ffc6470 00000001ad7253fc
+0x000000016ffc6430:   0000000153a0c5e0 00000001f622f300
+0x000000016ffc6440:   0000000156126800 0000006bf7e064ea
+0x000000016ffc6450:   0000006bf7e0d42f 0000000000000000
+0x000000016ffc6460:   0000000153a0c5e0 000000015731e600
+0x000000016ffc6470:   000000016ffc64b0 000000019760a9c0
+0x000000016ffc6480:   0000000000000000 0000000000010000
+0x000000016ffc6490:   00000001f622fc80 0000000000000028
+0x000000016ffc64a0:   00006000002a1140 0000600002980a30
+0x000000016ffc64b0:   000000016ffc6510 00000001ad732500
+0x000000016ffc64c0:   00006000002a1140 00001192ad85c216
+0x000000016ffc64d0:   00001192ad97de51 0000000000000000
+0x000000016ffc64e0:   0000000000000000 0000002800000000
+0x000000016ffc64f0:   0000000000000000 0000000000000002
+0x000000016ffc6500:   000060000389cf00 000060000038e9a0
+0x000000016ffc6510:   000000016ffc6540 00000001ad732610
+0x000000016ffc6520:   000000016ffc6560 000000000000005c
+0x000000016ffc6530:   000060000389cf00 0000600003f80d80
+0x000000016ffc6540:   000000016ffc6560 000000018c59d674
+0x000000016ffc6550:   000060000389cf00 0000600003f80d80 
+
+Instructions: (pc=0x0000000101e7eb84)
+0x0000000101e7ea84:   30 1a c1 da 02 8e 42 f8 e3 03 10 aa e0 03 08 aa
+0x0000000101e7ea94:   

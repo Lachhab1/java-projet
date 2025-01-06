@@ -3,6 +3,8 @@ package com.networkDetector;
 import com.networkDetector.capture.NetworkInterfaceHandler;
 import com.networkDetector.capture.PacketCaptureManager;
 import com.networkDetector.logging.NetworkLogger;
+import com.networkDetector.protocol.analyzer.ProtocolAnalyzer;
+import com.networkDetector.protocol.model.ProtocolData;
 import com.networkDetector.storage.PacketDTO;
 import com.networkDetector.storage.PacketStorageManager;
 import org.pcap4j.core.PcapNetworkInterface;
@@ -15,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -173,6 +176,10 @@ public class NetworkIntrusionDetector {
         Files.write(Paths.get(filename), packetJsonList);
     }
 
+    public ConcurrentLinkedQueue<ProtocolData> getThreatAlerts() {
+        return captureManager.getThreatAlerts();
+    }
+
     public static void main(String[] args) {
         NetworkIntrusionDetector detector = new NetworkIntrusionDetector();
         // Improved shutdown hook
@@ -203,4 +210,5 @@ public class NetworkIntrusionDetector {
             System.exit(1);
         }
     }
+
 }

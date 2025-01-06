@@ -1,33 +1,41 @@
 package com.networkDetector.ui;
 
 import com.networkDetector.NetworkIntrusionDetector;
+import com.networkDetector.protocol.model.ProtocolData;
+import com.networkDetector.protocol.model.ThreatLevel;
 import com.networkDetector.storage.PacketDTO;
+
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
-import javafx.scene.chart.PieChart;
-import javafx.scene.control.cell.PropertyValueFactory;
-import java.util.concurrent.atomic.AtomicInteger;
+import javafx.util.Duration;
 import org.pcap4j.core.PcapNetworkInterface;
 import org.pcap4j.core.PcapNativeException;
+
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+
 
 public class NetworkIntrusionDetectorUI extends Application {
     private NetworkIntrusionDetector detector;
     private TextArea packetTextArea;
     private Label statsLabel;
-    private TableView<PacketDTO> packetTable; // Updated to use PacketDTO
+    private TableView<PacketDTO> packetTable;
+    private TableView<ProtocolData> threatTable;
     private LineChart<Number, Number> trafficChart;
-    private PieChart protocolChart;
     private XYChart.Series<Number, Number> trafficSeries;
     private AtomicInteger xSeriesData = new AtomicInteger(0);
     private Label statusLabel;
@@ -179,8 +187,6 @@ public class NetworkIntrusionDetectorUI extends Application {
 
         // Packet Table
         packetTable = new TableView<>();
-
-        // Define columns for PacketDTO
         TableColumn<PacketDTO, String> timeCol = new TableColumn<>("Time");
         timeCol.setCellValueFactory(new PropertyValueFactory<>("timestamp"));
 
@@ -224,10 +230,6 @@ public class NetworkIntrusionDetectorUI extends Application {
         trafficSeries = new XYChart.Series<>();
         trafficChart.getData().add(trafficSeries);
 
-        // Protocol Distribution Chart
-        protocolChart = new PieChart();
-        protocolChart.setTitle("Protocol Distribution");
-
         // Statistics Labels
         statsLabel = new Label("Capture Statistics");
 
@@ -240,7 +242,6 @@ public class NetworkIntrusionDetectorUI extends Application {
 
         statsPane.getChildren().addAll(
                 trafficChart,
-                protocolChart,
                 statsLabel,
                 statsGrid);
 
@@ -250,18 +251,60 @@ public class NetworkIntrusionDetectorUI extends Application {
     private VBox createAlertsPane() {
         VBox alertsPane = new VBox(10);
         alertsPane.setPadding(new Insets(10));
+        alertsPane.getStyleClass().add("content-pane");
 
-        ListView<String> alertsList = new ListView<>();
-        alertsList.setItems(FXCollections.observableArrayList(
-                "Warning: Unusual traffic pattern detected",
-                "Alert: Multiple connection attempts from blocked IP",
-                "Info: New device connected to network"));
+        // Create notification area
+        VBox notificationArea = new VBox(5);
+        notificationArea.getStyleClass().add("notification-pane");
+        Label notificationLabel = new Label("No active threats");
+        notificationArea.getChildren().add(notificationLabel);
 
+        // Threat Table with custom row factory
+        threatTable = new TableView<>();
+        threatTable.setRowFactory(tv -> new TableRow<ProtocolData>() {
+            @Override
+            protected void updateItem(ProtocolData item, boolean empty) {
+                super.updateItem(item, empty);
+                if (item == null || empty) {
+                    setStyle("");
+                } else {
+                    if (item.getThreatLevel() == ThreatLevel.HIGH) {
+                        getStyleClass().add("threat-row-high");
+                    } else if (item.getThreatLevel() == ThreatLevel.MEDIUM) {
+                        getStyleClass().add("threat-row-medium");
+                    }
+                }
+            }
+        });
+
+        // Add columns with better sizing
+        TableColumn<ProtocolData, String> threatTimeCol = createColumn("Time", "timestamp", 150);
+        TableColumn<ProtocolData, String> threatProtocolCol = createColumn("Protocol", "protocolType", 100);
+        TableColumn<ProtocolData, String> threatSourceCol = createColumn("Source", "sourceAddress", 150);
+        TableColumn<ProtocolData, String> threatDestCol = createColumn("Destination", "destinationAddress", 150);
+        TableColumn<ProtocolData, String> threatLevelCol = createColumn("Threat Level", "threatLevel", 100);
+        TableColumn<ProtocolData, String> threatAnalysisCol = createColumn("Analysis", "analysis", 300);
+
+        threatTable.getColumns().addAll(
+                threatTimeCol, threatProtocolCol, threatSourceCol,
+                threatDestCol, threatLevelCol, threatAnalysisCol);
+
+        // Add components
         alertsPane.getChildren().addAll(
-                new Label("Security Alerts"),
-                alertsList);
+                notificationArea,
+                new Separator(),
+                new Label("Threat Details"),
+                threatTable);
 
         return alertsPane;
+    }
+
+    private <T> TableColumn<ProtocolData, T> createColumn(String title, String property, double width) {
+        TableColumn<ProtocolData, T> column = new TableColumn<>(title);
+        column.setCellValueFactory(new PropertyValueFactory<>(property));
+        column.setPrefWidth(width);
+        column.setStyle("-fx-alignment: CENTER;");
+        return column;
     }
 
     private void startUIUpdateThread() {
@@ -282,13 +325,13 @@ public class NetworkIntrusionDetectorUI extends Application {
 
     private void updateUI() {
         // Update packet display
-        List<PacketDTO> capturedPackets = detector.getCapturedPackets(); // Assuming this returns List<PacketDTO>
-        ObservableList<PacketDTO> packetEntries = FXCollections.observableArrayList(capturedPackets);
+        List<PacketDTO> newPackets = detector.getCapturedPackets();
+        ObservableList<PacketDTO> packetEntries = FXCollections.observableArrayList(newPackets);
         packetTable.setItems(packetEntries);
 
         // Update packet details
         StringBuilder packetBuilder = new StringBuilder();
-        for (PacketDTO packet : capturedPackets) {
+        for (PacketDTO packet : newPackets) {
             packetBuilder.append(packet.toString()).append("\n");
         }
         packetTextArea.setText(packetBuilder.toString());
@@ -305,6 +348,11 @@ public class NetworkIntrusionDetectorUI extends Application {
         if (trafficSeries.getData().size() > 50) {
             trafficSeries.getData().remove(0);
         }
+
+        // Update threat alerts
+        List<ProtocolData> newThreats = List.copyOf(detector.getThreatAlerts());
+        ObservableList<ProtocolData> threatEntries = FXCollections.observableArrayList(newThreats);
+        threatTable.setItems(threatEntries);
     }
 
     private void clearAllData() {
@@ -326,6 +374,25 @@ public class NetworkIntrusionDetectorUI extends Application {
             alert.setHeaderText(null);
             alert.setContentText(message);
             alert.showAndWait();
+        });
+    }
+
+    private void showNotification(String title, String message, ThreatLevel level) {
+        Platform.runLater(() -> {
+            Notification notification = new Notification(title, message, level);
+            VBox notificationBox = notification.create();
+
+            // Add to notification area
+            VBox notificationArea = (VBox) threatTable.getParent().lookup(".notification-pane");
+            if (notificationArea != null) {
+                notificationArea.getChildren().add(0, notificationBox);
+
+                // Remove after delay
+                Timeline timeline = new Timeline(
+                        new KeyFrame(Duration.seconds(5),
+                                evt -> notificationArea.getChildren().remove(notificationBox)));
+                timeline.play();
+            }
         });
     }
 

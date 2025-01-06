@@ -1,13 +1,2 @@
-com\networkDetector\logging\NetworkLogger.class
-com\networkDetector\NetworkIntrusionDetector.class
-com\networkDetector\capture\NetworkInterfaceHandler.class
-com\networkDetector\capture\NetworkCaptureModule.class
-com\networkDetector\storage\PacketStorageManager.class
-com\networkDetector\storage\PacketConverter.class
-com\networkDetector\ui\NetworkIntrusionDetectorUI$NetworkInterfaceItem.class
-com\networkDetector\storage\PacketDTO.class
-com\networkDetector\model\FilterConfig.class
-com\networkDetector\capture\PacketCaptureManager.class
-com\networkDetector\filter\AdvancedPacketFilter.class
-com\networkDetector\model\NetworkStatistics.class
-com\networkDetector\ui\NetworkIntrusionDetectorUI.class
+com\networkDetector\ui\Notification$1.class
+com\networkDetector\protocol\analyzer\ThreatDetector$1.class

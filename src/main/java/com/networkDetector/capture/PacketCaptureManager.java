@@ -2,24 +2,28 @@ package com.networkDetector.capture;
 
 import com.networkDetector.filter.AdvancedPacketFilter;
 import com.networkDetector.logging.NetworkLogger;
+import com.networkDetector.protocol.analyzer.ProtocolAnalyzer;
+import com.networkDetector.protocol.model.ProtocolData;
+import com.networkDetector.protocol.model.ThreatLevel;
 import com.networkDetector.storage.PacketStorageManager;
 import org.pcap4j.core.*;
 import org.pcap4j.packet.Packet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class PacketCaptureManager {
     private static final Logger logger = LoggerFactory.getLogger(PacketCaptureManager.class);
-
+    private final ProtocolAnalyzer protocolAnalyzer;
     private final NetworkInterfaceHandler interfaceHandler;
     private final AdvancedPacketFilter packetFilter;
     private final PacketStorageManager packetStorage;
     private final NetworkLogger networkLogger;
-
+    private final ConcurrentLinkedQueue<ProtocolData> threatAlerts;
     private volatile boolean isCapturing = false;
     private ExecutorService executor;
     private PcapHandle handle;
@@ -32,6 +36,8 @@ public class PacketCaptureManager {
         this.networkLogger = networkLogger;
         this.packetStorage = packetStorage;
         this.packetFilter = new AdvancedPacketFilter(networkLogger);
+        this.protocolAnalyzer = new ProtocolAnalyzer(networkLogger);
+        this.threatAlerts = new ConcurrentLinkedQueue<>();
     }
 
     public void startCapture() {
@@ -63,7 +69,7 @@ public class PacketCaptureManager {
             logger.error("Unable to start capture", e);
         }
     }
-    
+
     public void startCapture(PcapNetworkInterface networkInterface) {
         if (isCapturing) {
             logger.warn("Capture is already in progress");
@@ -92,6 +98,7 @@ public class PacketCaptureManager {
             logger.error("Unable to start capture", e);
         }
     }
+
     private void capturePackets() throws PcapNativeException, NotOpenException {
         while (isCapturing) {
             Packet packet = handle.getNextPacket();
@@ -109,11 +116,28 @@ public class PacketCaptureManager {
         }
     }
 
+    private void handleThreat(ProtocolData protocolData) {
+        // Implement threat handling logic
+        networkLogger.logSecurityEvent(
+                String.format("Threat detected: %s from %s",
+                        protocolData.getThreatLevel(),
+                        protocolData.getSourceAddress()));
+        threatAlerts.add(protocolData);
+    }
+
     private void processPacket(Packet packet) {
         try {
             // Store the packet
             packetStorage.storePacket(packet);
-
+            // Analyze the packet
+            if (packet != null) {
+                ProtocolData protocolData = protocolAnalyzer.analyzePacket(packet);
+                if (protocolData != null &&
+                        protocolData.getThreatLevel().getLevel() >= ThreatLevel.MEDIUM.getLevel()) {
+                    // Handle detected threats
+                    handleThreat(protocolData);
+                }
+            }
             // Detailed log
             networkLogger.logPacket(packet);
         } catch (Exception e) {
@@ -147,5 +171,8 @@ public class PacketCaptureManager {
         // Implement your logic to return statistics
 
         return "Statistics not implemented yet";
+    }
+    public ConcurrentLinkedQueue<ProtocolData> getThreatAlerts() {
+        return threatAlerts;
     }
 }
