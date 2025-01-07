@@ -2,6 +2,7 @@ package com.networkDetector.ui;
 
 import com.networkDetector.NetworkIntrusionDetector;
 import com.networkDetector.protocol.model.ProtocolData;
+import com.networkDetector.protocol.model.ThreatLevel;
 import com.networkDetector.storage.PacketDTO;
 
 import javafx.animation.KeyFrame;
