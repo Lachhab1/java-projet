@@ -7,8 +7,6 @@ import org.pcap4j.packet.Packet;
 import org.pcap4j.packet.TcpPacket;
 import org.pcap4j.packet.UdpPacket;
 
-import java.time.Instant;
-
 public class PacketDTO {
     private final String timestamp;
     private final String protocol;
@@ -18,6 +16,7 @@ public class PacketDTO {
     private final Integer destinationPort;
     private final Long length;
     private final String packetType;
+    private final String payload;
 
     public PacketDTO(
             @JsonProperty("timestamp") String timestamp,
@@ -27,7 +26,8 @@ public class PacketDTO {
             @JsonProperty("sourcePort") Integer sourcePort,
             @JsonProperty("destinationPort") Integer destinationPort,
             @JsonProperty("length") Long length,
-            @JsonProperty("packetType") String packetType) {
+            @JsonProperty("packetType") String packetType,
+            @JsonProperty("payload") String payload) {
         this.timestamp = timestamp;
         this.protocol = protocol;
         this.sourceAddress = sourceAddress;
@@ -36,6 +36,7 @@ public class PacketDTO {
         this.destinationPort = destinationPort;
         this.length = length;
         this.packetType = packetType;
+        this.payload = payload;
     }
 
     // Getters
@@ -69,6 +70,10 @@ public class PacketDTO {
 
     public String getPacketType() {
         return packetType;
+    }
+
+    public String getPayload() {
+        return payload;
     }
 
     // get size of packet

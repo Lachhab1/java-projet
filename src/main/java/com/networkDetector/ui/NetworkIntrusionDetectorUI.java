@@ -210,7 +210,7 @@ public class NetworkIntrusionDetectorUI extends Application {
         // Add listener to packetTable selection
         packetTable.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue != null) {
-                packetTextArea.setText(newValue.toString());
+                packetTextArea.setText(newValue.getPayload());
             }
         });
 

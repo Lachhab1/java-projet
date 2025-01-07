@@ -1,4 +1,3 @@
-// PacketConverter.java
 package com.networkDetector.storage;
 
 import org.pcap4j.packet.*;
@@ -66,7 +65,7 @@ public class PacketConverter {
                 sourcePort,
                 destPort,
                 (long) packet.length(),
-                packet.getClass().getSimpleName()
-        );
+                packet.getClass().getSimpleName(),
+                packet.getRawData().toString());
     }
 }
