@@ -1,5 +1,6 @@
 Z:\Users\mohammedlachhab\projects\java-project\IDS\src\main\java\com\networkDetector\capture\PacketCaptureManager.java
 Z:\Users\mohammedlachhab\projects\java-project\IDS\src\main\java\com\networkDetector\protocol\analyzer\FtpAnalyzer.java
+Z:\Users\mohammedlachhab\projects\java-project\IDS\src\main\java\com\networkDetector\protocol\model\ThreatInfo.java
 Z:\Users\mohammedlachhab\projects\java-project\IDS\src\main\java\com\networkDetector\protocol\analyzer\ProtocolAnalyzer.java
 Z:\Users\mohammedlachhab\projects\java-project\IDS\src\main\java\com\networkDetector\protocol\model\ProtocolType.java
 Z:\Users\mohammedlachhab\projects\java-project\IDS\src\main\java\com\networkDetector\storage\PacketDTO.java

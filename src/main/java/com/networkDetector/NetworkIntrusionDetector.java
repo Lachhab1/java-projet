@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class NetworkIntrusionDetector {
     private static final Logger logger = LoggerFactory.getLogger(NetworkIntrusionDetector.class);
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 5;
-    private static final String DEFAULT_INTERFACE = "Ethernet";
+    private static final String DEFAULT_INTERFACE = "en0";
 
     private final PacketCaptureManager captureManager;
     private final NetworkLogger networkLogger;

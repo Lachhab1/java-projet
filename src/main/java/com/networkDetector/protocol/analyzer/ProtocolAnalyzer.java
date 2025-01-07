@@ -1,67 +1,59 @@
 package com.networkDetector.protocol.analyzer;
 
+import com.networkDetector.protocol.model.ProtocolData;
+import com.networkDetector.protocol.model.ThreatInfo;
+import com.networkDetector.protocol.model.ThreatLevel;
+import com.networkDetector.protocol.model.ProtocolType;
 import com.networkDetector.logging.NetworkLogger;
-import com.networkDetector.protocol.model.*;
-import org.pcap4j.packet.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.pcap4j.packet.IpPacket;
+import org.pcap4j.packet.Packet;
+import org.pcap4j.packet.TcpPacket;
+import org.pcap4j.packet.UdpPacket;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ProtocolAnalyzer {
-    private static final Logger logger = LoggerFactory.getLogger(ProtocolAnalyzer.class);
-    private final NetworkLogger networkLogger;
-    private final ConcurrentHashMap<String, AtomicInteger> connectionCounter;
     private final ThreatDetector threatDetector;
+    private final NetworkLogger networkLogger;
 
     public ProtocolAnalyzer(NetworkLogger networkLogger) {
         this.networkLogger = networkLogger;
-        this.connectionCounter = new ConcurrentHashMap<>();
         this.threatDetector = new ThreatDetector();
     }
 
     public ProtocolData analyzePacket(Packet packet) {
-        try {
-            IpPacket ipPacket = packet.get(IpPacket.class);
-            if (ipPacket == null) {
-                return null;
-            }
-
-            TcpPacket tcpPacket = packet.get(TcpPacket.class);
-            if (tcpPacket != null) {
-                return analyzeTcpPacket(tcpPacket, ipPacket);
-            }
-
-            UdpPacket udpPacket = packet.get(UdpPacket.class);
-            if (udpPacket != null) {
-                return analyzeUdpPacket(udpPacket, ipPacket);
-            }
-
-            return null;
-        } catch (Exception e) {
-            logger.error("Error analyzing packet: {}", e.getMessage());
+        IpPacket ipPacket = packet.get(IpPacket.class);
+        if (ipPacket == null) {
             return null;
         }
-    }
-
-    private ProtocolData analyzeTcpPacket(TcpPacket tcpPacket, IpPacket ipPacket) {
-        int dstPort = tcpPacket.getHeader().getDstPort().valueAsInt();
-        ProtocolType protocolType = ProtocolType.fromPort(dstPort);
 
         String sourceAddr = ipPacket.getHeader().getSrcAddr().getHostAddress();
         String destAddr = ipPacket.getHeader().getDstAddr().getHostAddress();
 
-        // Track connection attempts
-        String connectionKey = sourceAddr + ":" + destAddr;
-        connectionCounter.computeIfAbsent(connectionKey, k -> new AtomicInteger(0))
-                .incrementAndGet();
+        TcpPacket tcpPacket = packet.get(TcpPacket.class);
+        if (tcpPacket != null) {
+            return analyzeTcpPacket(tcpPacket, ipPacket, sourceAddr, destAddr);
+        }
 
-        // Analyze threat level
-        ThreatLevel threatLevel = threatDetector.detectThreat(tcpPacket, protocolType);
+        UdpPacket udpPacket = packet.get(UdpPacket.class);
+        if (udpPacket != null) {
+            return analyzeUdpPacket(udpPacket, ipPacket, sourceAddr, destAddr);
+        }
 
-        if (threatLevel.getLevel() >= ThreatLevel.MEDIUM.getLevel()) {
+        return null;
+    }
+
+    private ProtocolData analyzeTcpPacket(TcpPacket tcpPacket, IpPacket ipPacket, String sourceAddr, String destAddr) {
+        int dstPort = tcpPacket.getHeader().getDstPort().valueAsInt();
+        ProtocolType protocolType = ProtocolType.fromPort(dstPort);
+        ThreatInfo threatInfo = threatDetector.detectThreat(tcpPacket, protocolType);
+        ThreatLevel threatLevel = threatInfo.getThreatLevel();
+        String threatType = threatInfo.getThreatType();
+
+        String analysis = String.format("TCP packet analysis: Protocol: %s, Threat Type: %s, Threat Level: %s",
+                protocolType, threatType, threatLevel);
+
+        if (threatLevel != ThreatLevel.LOW) {
             networkLogger.logSecurityEvent(String.format(
                     "Potential threat detected - Protocol: %s, Source: %s, Threat Level: %s",
                     protocolType, sourceAddr, threatLevel));
@@ -75,14 +67,35 @@ public class ProtocolAnalyzer {
                 .destinationPort(dstPort)
                 .timestamp(LocalDateTime.now())
                 .threatLevel(threatLevel)
-                .analysis("TCP packet analysis")
+                .analysis(analysis)
                 .build();
     }
 
-    private ProtocolData analyzeUdpPacket(UdpPacket udpPacket, IpPacket ipPacket) {
-        // Similar implementation for UDP packets
-        // Particularly important for DNS analysis
-        // ... (implement UDP analysis)
-        return null;
+    private ProtocolData analyzeUdpPacket(UdpPacket udpPacket, IpPacket ipPacket, String sourceAddr, String destAddr) {
+        int dstPort = udpPacket.getHeader().getDstPort().valueAsInt();
+        ProtocolType protocolType = ProtocolType.fromPort(dstPort);
+        ThreatInfo threatInfo = threatDetector.detectThreat(udpPacket, protocolType);
+        ThreatLevel threatLevel = threatInfo.getThreatLevel();
+        String threatType = threatInfo.getThreatType();
+
+        String analysis = String.format("UDP packet analysis: Protocol: %s, Threat Type: %s, Threat Level: %s",
+                protocolType, threatType, threatLevel);
+
+        if (threatLevel != ThreatLevel.LOW) {
+            networkLogger.logSecurityEvent(String.format(
+                    "Potential threat detected - Protocol: %s, Source: %s, Threat Level: %s",
+                    protocolType, sourceAddr, threatLevel));
+        }
+
+        return new ProtocolData.Builder()
+                .protocolType(protocolType)
+                .sourceAddress(sourceAddr)
+                .destinationAddress(destAddr)
+                .sourcePort(udpPacket.getHeader().getSrcPort().valueAsInt())
+                .destinationPort(dstPort)
+                .timestamp(LocalDateTime.now())
+                .threatLevel(threatLevel)
+                .analysis(analysis)
+                .build();
     }
 }

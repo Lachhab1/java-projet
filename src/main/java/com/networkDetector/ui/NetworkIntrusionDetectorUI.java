@@ -148,7 +148,7 @@ public class NetworkIntrusionDetectorUI extends Application {
                     Platform.runLater(() -> statusLabel
                             .setText("Capturing packets on " + selectedInterface.getNetworkInterface().getName()));
                 } catch (Exception e) {
-                    Platform.runLater(() -> showError("Capture Error", e));
+                    Platform.runLater(() -> showError("Capture Error", e.getMessage()));
                 }
             }).start();
         });
@@ -206,6 +206,13 @@ public class NetworkIntrusionDetectorUI extends Application {
         packetTextArea = new TextArea();
         packetTextArea.setEditable(false);
         packetTextArea.setPrefRowCount(10);
+
+        // Add listener to packetTable selection
+        packetTable.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue != null) {
+                packetTextArea.setText(newValue.toString());
+            }
+        });
 
         monitorPane.getChildren().addAll(
                 new Label("Live Packet Capture"),
@@ -309,7 +316,7 @@ public class NetworkIntrusionDetectorUI extends Application {
         Thread updateThread = new Thread(() -> {
             while (true) {
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(2000); // Reduce update frequency to every 2 seconds
                     Platform.runLater(this::updateUI);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -327,22 +334,19 @@ public class NetworkIntrusionDetectorUI extends Application {
         ObservableList<PacketDTO> packetEntries = FXCollections.observableArrayList(newPackets);
         packetTable.setItems(packetEntries);
 
-        // Update packet details
-        StringBuilder packetBuilder = new StringBuilder();
-        for (PacketDTO packet : newPackets) {
-            packetBuilder.append(packet.toString()).append("\n");
-        }
-        packetTextArea.setText(packetBuilder.toString());
-
         // Update statistics
         String stats = detector.getStatistics();
         statsLabel.setText(stats);
 
         // Update traffic chart
-        List<Double> trafficData = detector.getTrafficData();
-        for (Double dataPoint : trafficData) {
-            trafficSeries.getData().add(new XYChart.Data<>(xSeriesData.getAndIncrement(), dataPoint));
-        }
+        // List<Double> trafficData = detector.getTrafficData();
+        // for (Double dataPoint : trafficData) {
+        // trafficSeries.getData().add(new XYChart.Data<>(xSeriesData.getAndIncrement(),
+        // dataPoint));
+        // }
+        // fake data for testing
+        double fakeDataPoint = Math.random() * 100;
+        trafficSeries.getData().add(new XYChart.Data<>(xSeriesData.getAndIncrement(), fakeDataPoint));
 
         // Remove old data points to prevent memory issues
         if (trafficSeries.getData().size() > 50) {
@@ -362,10 +366,6 @@ public class NetworkIntrusionDetectorUI extends Application {
         trafficSeries.getData().clear();
         xSeriesData.set(0);
         statusLabel.setText("Data cleared");
-    }
-
-    private void showError(String title, Exception e) {
-        showError(title, e.getMessage());
     }
 
     private void showError(String title, String message) {
