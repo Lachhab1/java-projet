@@ -2,7 +2,6 @@ package com.networkDetector.ui;
 
 import com.networkDetector.NetworkIntrusionDetector;
 import com.networkDetector.protocol.model.ProtocolData;
-import com.networkDetector.protocol.model.ThreatLevel;
 import com.networkDetector.storage.PacketDTO;
 
 import javafx.animation.KeyFrame;
@@ -26,8 +25,6 @@ import org.pcap4j.core.PcapNativeException;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-
-
 
 public class NetworkIntrusionDetectorUI extends Application {
     private NetworkIntrusionDetector detector;
@@ -341,8 +338,10 @@ public class NetworkIntrusionDetectorUI extends Application {
         statsLabel.setText(stats);
 
         // Update traffic chart
-        trafficSeries.getData().add(
-                new XYChart.Data<>(xSeriesData.getAndIncrement(), Math.random() * 100));
+        List<Double> trafficData = detector.getTrafficData();
+        for (Double dataPoint : trafficData) {
+            trafficSeries.getData().add(new XYChart.Data<>(xSeriesData.getAndIncrement(), dataPoint));
+        }
 
         // Remove old data points to prevent memory issues
         if (trafficSeries.getData().size() > 50) {
@@ -358,6 +357,7 @@ public class NetworkIntrusionDetectorUI extends Application {
     private void clearAllData() {
         packetTextArea.clear();
         packetTable.getItems().clear();
+        threatTable.getItems().clear();
         trafficSeries.getData().clear();
         xSeriesData.set(0);
         statusLabel.setText("Data cleared");
@@ -374,25 +374,6 @@ public class NetworkIntrusionDetectorUI extends Application {
             alert.setHeaderText(null);
             alert.setContentText(message);
             alert.showAndWait();
-        });
-    }
-
-    private void showNotification(String title, String message, ThreatLevel level) {
-        Platform.runLater(() -> {
-            Notification notification = new Notification(title, message, level);
-            VBox notificationBox = notification.create();
-
-            // Add to notification area
-            VBox notificationArea = (VBox) threatTable.getParent().lookup(".notification-pane");
-            if (notificationArea != null) {
-                notificationArea.getChildren().add(0, notificationBox);
-
-                // Remove after delay
-                Timeline timeline = new Timeline(
-                        new KeyFrame(Duration.seconds(5),
-                                evt -> notificationArea.getChildren().remove(notificationBox)));
-                timeline.play();
-            }
         });
     }
 

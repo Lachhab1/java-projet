@@ -180,6 +180,10 @@ public class NetworkIntrusionDetector {
         return captureManager.getThreatAlerts();
     }
 
+    public List<Double> getTrafficData() {
+        return captureManager.getTrafficData();
+    }
+
     public static void main(String[] args) {
         NetworkIntrusionDetector detector = new NetworkIntrusionDetector();
         // Improved shutdown hook
@@ -210,5 +214,4 @@ public class NetworkIntrusionDetector {
             System.exit(1);
         }
     }
-
 }

@@ -54,7 +54,43 @@ public class PacketStorageManager {
         }
     }
 
+    // get total number of packets stored
+    public int getTotalPackets() {
+        return packetQueue.size();
+    }
+
+    // get average packet size
+
+    public double getAveragePacketSize() {
+        if (packetQueue.isEmpty()) {
+            return 0.0;
+        }
+        double totalSize = packetQueue.stream()
+                .mapToDouble(PacketDTO::getSize)
+                .sum();
+        return totalSize / packetQueue.size();
+    }
+
     public int getStoredPacketCount() {
         return packetQueue.size();
+    }
+
+    // get bandwidth
+    public double getBandwidth() {
+        if (packetQueue.isEmpty()) {
+            return 0.0;
+        }
+        double totalSize = packetQueue.stream()
+                .mapToDouble(PacketDTO::getSize)
+                .sum();
+        return totalSize / packetQueue.size();
+    }
+
+    public String getStatistics() {
+        int totalPackets = getTotalPackets();
+        double averageSize = getAveragePacketSize();
+        double bandwidth = getBandwidth();
+        return String.format("Total Packets: %d, Average Packet Size: %.2f bytes, Bandwidth: %.2f bytes/sec",
+                totalPackets, averageSize, bandwidth);
     }
 }

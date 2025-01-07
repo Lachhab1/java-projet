@@ -5,16 +5,20 @@ import com.networkDetector.logging.NetworkLogger;
 import com.networkDetector.protocol.analyzer.ProtocolAnalyzer;
 import com.networkDetector.protocol.model.ProtocolData;
 import com.networkDetector.protocol.model.ThreatLevel;
+import com.networkDetector.storage.PacketDTO;
 import com.networkDetector.storage.PacketStorageManager;
 import org.pcap4j.core.*;
 import org.pcap4j.packet.Packet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class PacketCaptureManager {
     private static final Logger logger = LoggerFactory.getLogger(PacketCaptureManager.class);
@@ -24,6 +28,9 @@ public class PacketCaptureManager {
     private final PacketStorageManager packetStorage;
     private final NetworkLogger networkLogger;
     private final ConcurrentLinkedQueue<ProtocolData> threatAlerts;
+    private final ConcurrentLinkedQueue<PacketDTO> capturedPackets;
+    private final AtomicInteger totalPackets;
+    private final AtomicInteger totalPacketSize;
     private volatile boolean isCapturing = false;
     private ExecutorService executor;
     private PcapHandle handle;
@@ -38,6 +45,9 @@ public class PacketCaptureManager {
         this.packetFilter = new AdvancedPacketFilter(networkLogger);
         this.protocolAnalyzer = new ProtocolAnalyzer(networkLogger);
         this.threatAlerts = new ConcurrentLinkedQueue<>();
+        this.capturedPackets = new ConcurrentLinkedQueue<>();
+        this.totalPackets = new AtomicInteger(0);
+        this.totalPacketSize = new AtomicInteger(0);
     }
 
     public void startCapture() {
@@ -129,12 +139,17 @@ public class PacketCaptureManager {
         try {
             // Store the packet
             packetStorage.storePacket(packet);
+            capturedPackets.add(packetStorage.getCapturedPackets().get(packetStorage.getStoredPacketCount() - 1));
+            // update statistics
+            totalPackets.incrementAndGet();
+            totalPacketSize.addAndGet(packet.getPayload().length());
             // Analyze the packet
             if (packet != null) {
                 ProtocolData protocolData = protocolAnalyzer.analyzePacket(packet);
                 if (protocolData != null &&
                         protocolData.getThreatLevel().getLevel() >= ThreatLevel.MEDIUM.getLevel()) {
                     // Handle detected threats
+                    threatAlerts.offer(protocolData);
                     handleThreat(protocolData);
                 }
             }
@@ -168,11 +183,22 @@ public class PacketCaptureManager {
     }
 
     public String getStatistics() {
-        // Implement your logic to return statistics
+        int totalPackets = this.totalPackets.get();
+        double averageSize = totalPackets > 0 ? (double) totalPacketSize.get() / totalPackets : 0;
+        double bandwidth = totalPackets > 0 ? (double) totalPacketSize.get() * 8 / (totalPackets * 10) : 0;
 
-        return "Statistics not implemented yet";
+        return String.format("Total Packets: %d\nAverage Size: %.2f bytes\nBandwidth: %.2f Mbps",
+                totalPackets, averageSize, bandwidth);
     }
+
     public ConcurrentLinkedQueue<ProtocolData> getThreatAlerts() {
         return threatAlerts;
+    }
+
+    public List<Double> getTrafficData() {
+        return capturedPackets.stream()
+                .map(PacketDTO::getLength)
+                .map(length -> (double) length)
+                .collect(Collectors.toList());
     }
 }

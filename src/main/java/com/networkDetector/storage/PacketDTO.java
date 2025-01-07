@@ -39,14 +39,55 @@ public class PacketDTO {
     }
 
     // Getters
-    public String getTimestamp() { return timestamp; }
-    public String getProtocol() { return protocol; }
-    public String getSourceAddress() { return sourceAddress; }
-    public String getDestinationAddress() { return destinationAddress; }
-    public Integer getSourcePort() { return sourcePort; }
-    public Integer getDestinationPort() { return destinationPort; }
-    public Long getLength() { return length; }
-    public String getPacketType() { return packetType; }
+    public String getTimestamp() {
+        return timestamp;
+    }
+
+    public String getProtocol() {
+        return protocol;
+    }
+
+    public String getSourceAddress() {
+        return sourceAddress;
+    }
+
+    public String getDestinationAddress() {
+        return destinationAddress;
+    }
+
+    public Integer getSourcePort() {
+        return sourcePort;
+    }
+
+    public Integer getDestinationPort() {
+        return destinationPort;
+    }
+
+    public Long getLength() {
+        return length;
+    }
+
+    public String getPacketType() {
+        return packetType;
+    }
+
+    // get size of packet
+    public int getSize() {
+        return length.intValue();
+    }
+
+    // get packet type
+    public String getPacketType(Packet packet) {
+        if (packet instanceof TcpPacket) {
+            return "TCP";
+        } else if (packet instanceof UdpPacket) {
+            return "UDP";
+        } else if (packet instanceof IpV4Packet) {
+            return "IPV4";
+        } else {
+            return "UNKNOWN";
+        }
+    }
 
     @Override
     public String toString() {
