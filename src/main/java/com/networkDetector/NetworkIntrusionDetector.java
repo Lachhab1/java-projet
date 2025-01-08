@@ -5,6 +5,7 @@ import com.networkDetector.capture.PacketCaptureManager;
 import com.networkDetector.logging.NetworkLogger;
 import com.networkDetector.protocol.analyzer.ProtocolAnalyzer;
 import com.networkDetector.protocol.model.ProtocolData;
+import com.networkDetector.protocol.model.ThreatLevel;
 import com.networkDetector.storage.PacketDTO;
 import com.networkDetector.storage.PacketStorageManager;
 import org.pcap4j.core.PcapNetworkInterface;
@@ -15,8 +16,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,17 +34,22 @@ public class NetworkIntrusionDetector {
     private final NetworkLogger networkLogger;
     private final PacketStorageManager storageManager;
     private final NetworkInterfaceHandler interfaceHandler;
-    private final ExecutorService monitoringExecutor;
+    private final ProtocolAnalyzer protocolAnalyzer;
+    private final ConcurrentLinkedQueue<ProtocolData> threatAlerts;
+    private final Set<String> detectedThreats;
+    private ExecutorService monitoringExecutor;
     private final AtomicBoolean isRunning;
 
     public NetworkIntrusionDetector() {
         this.networkLogger = new NetworkLogger();
         this.storageManager = new PacketStorageManager();
         this.interfaceHandler = new NetworkInterfaceHandler();
+        this.protocolAnalyzer = new ProtocolAnalyzer(networkLogger);
+        this.threatAlerts = new ConcurrentLinkedQueue<>();
+        this.detectedThreats = new HashSet<>();
         this.monitoringExecutor = Executors.newSingleThreadExecutor();
         this.isRunning = new AtomicBoolean(false);
 
-        // Initialize interface handler with better error handling
         try {
             PcapNetworkInterface defaultInterface = interfaceHandler.selectDefaultInterface();
             if (defaultInterface != null) {
@@ -114,24 +121,33 @@ public class NetworkIntrusionDetector {
     }
 
     private void shutdownExecutor() {
-        monitoringExecutor.shutdown();
-        try {
-            if (!monitoringExecutor.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+        if (monitoringExecutor != null) {
+            monitoringExecutor.shutdown();
+            try {
+                if (!monitoringExecutor.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                    monitoringExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
                 monitoringExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
             }
-        } catch (InterruptedException e) {
-            monitoringExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
         }
     }
 
     private void startMonitoring() {
+        // Reinitialize the executor
+        if (monitoringExecutor.isTerminated()) {
+            monitoringExecutor = Executors.newSingleThreadExecutor();
+        }
         monitoringExecutor.submit(() -> {
             while (isRunning.get() && !Thread.currentThread().isInterrupted()) {
                 try {
                     List<PacketDTO> packets = getCapturedPackets();
                     if (!packets.isEmpty()) {
-                        logger.debug("Currently captured packets: {}", Optional.of(packets.size()));
+                        logger.debug("Currently captured packets: {}", packets.size());
+                        for (PacketDTO packet : packets) {
+                            analyzePacket(packet);
+                        }
                     }
                     TimeUnit.SECONDS.sleep(5);
                 } catch (InterruptedException e) {
@@ -140,6 +156,30 @@ public class NetworkIntrusionDetector {
                 }
             }
         });
+    }
+
+    private void analyzePacket(PacketDTO packetDTO) {
+        ProtocolData protocolData = protocolAnalyzer.analyzePacket(packetDTO.getPacket());
+        if (protocolData != null && protocolData.getThreatLevel() != ThreatLevel.LOW) {
+            String threatKey = generateThreatKey(protocolData);
+            if (!detectedThreats.contains(threatKey)) {
+                detectedThreats.add(threatKey);
+                threatAlerts.add(protocolData);
+            }
+        }
+    }
+
+    private void analyzeCapturedPackets() {
+        List<PacketDTO> packets = getCapturedPackets();
+        for (PacketDTO packet : packets) {
+            analyzePacket(packet);
+        }
+    }
+
+    private String generateThreatKey(ProtocolData protocolData) {
+        return protocolData.getSourceAddress() + ":" + protocolData.getSourcePort() + "->" +
+                protocolData.getDestinationAddress() + ":" + protocolData.getDestinationPort() + ":" +
+                protocolData.getThreatLevel();
     }
 
     public List<PacketDTO> getCapturedPackets() {
@@ -177,16 +217,22 @@ public class NetworkIntrusionDetector {
     }
 
     public ConcurrentLinkedQueue<ProtocolData> getThreatAlerts() {
-        return captureManager.getThreatAlerts();
+        return threatAlerts;
     }
 
     public List<Double> getTrafficData() {
         return captureManager.getTrafficData();
     }
 
+    public void clearCapturedData() {
+        captureManager.clearCapturedData();
+        threatAlerts.clear();
+        detectedThreats.clear();
+        storageManager.clearCapturedData();
+    }
+
     public static void main(String[] args) {
         NetworkIntrusionDetector detector = new NetworkIntrusionDetector();
-        // Improved shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Shutdown hook triggered, stopping detector...");
             detector.stop();
@@ -202,11 +248,9 @@ public class NetworkIntrusionDetector {
             }
 
             detector.startCapture(defaultInterface);
-            // Print JSON every 10 seconds
             while (true) {
                 Thread.sleep(30000);
                 detector.printCapturedPacketsJson();
-                // Save packets to file every 30 seconds
                 detector.savePacketsToFile("captured_packets.json");
             }
         } catch (Exception e) {

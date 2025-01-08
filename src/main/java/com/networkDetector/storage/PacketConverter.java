@@ -3,6 +3,7 @@ package com.networkDetector.storage;
 import org.pcap4j.packet.*;
 import org.pcap4j.util.MacAddress;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -57,6 +58,9 @@ public class PacketConverter {
             }
         }
 
+        // Convert packet payload to string
+        String payload = new String(packet.getPayload().getRawData(), StandardCharsets.UTF_8);
+
         return new PacketDTO(
                 Instant.now().toString(),
                 protocol,
@@ -66,6 +70,7 @@ public class PacketConverter {
                 destPort,
                 (long) packet.length(),
                 packet.getClass().getSimpleName(),
-                packet.getRawData().toString());
+                payload,
+                packet);
     }
 }

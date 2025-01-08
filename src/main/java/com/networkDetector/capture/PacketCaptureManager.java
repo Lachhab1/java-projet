@@ -5,6 +5,7 @@ import com.networkDetector.logging.NetworkLogger;
 import com.networkDetector.protocol.analyzer.ProtocolAnalyzer;
 import com.networkDetector.protocol.model.ProtocolData;
 import com.networkDetector.protocol.model.ThreatLevel;
+import com.networkDetector.storage.PacketConverter;
 import com.networkDetector.storage.PacketDTO;
 import com.networkDetector.storage.PacketStorageManager;
 import org.pcap4j.core.*;
@@ -90,7 +91,10 @@ public class PacketCaptureManager {
             handle = networkInterface.openLive(65536,
                     PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 10);
 
-            executor = Executors.newSingleThreadExecutor();
+            // Reinitialize the executor
+            if (executor == null || executor.isTerminated()) {
+                executor = Executors.newSingleThreadExecutor();
+            }
             isCapturing = true;
 
             executor.submit(() -> {
@@ -137,24 +141,24 @@ public class PacketCaptureManager {
 
     private void processPacket(Packet packet) {
         try {
-            // Store the packet
-            packetStorage.storePacket(packet);
-            capturedPackets.add(packetStorage.getCapturedPackets().get(packetStorage.getStoredPacketCount() - 1));
-            // update statistics
+            // Convert and store the packet
+            PacketDTO packetDTO = PacketConverter.convertPacket(packet);
+            packetStorage.storePacket(packetDTO);
+            capturedPackets.add(packetDTO);
+
+            // Update statistics
             totalPackets.incrementAndGet();
             totalPacketSize.addAndGet(packet.getPayload().length());
+
             // Analyze the packet
-            if (packet != null) {
-                ProtocolData protocolData = protocolAnalyzer.analyzePacket(packet);
-                if (protocolData != null &&
-                        protocolData.getThreatLevel().getLevel() >= ThreatLevel.MEDIUM.getLevel()) {
-                    // Handle detected threats
-                    threatAlerts.offer(protocolData);
-                    handleThreat(protocolData);
-                }
+            ProtocolData protocolData = protocolAnalyzer.analyzePacket(packet);
+            if (protocolData != null &&
+                    protocolData.getThreatLevel().getLevel() >= ThreatLevel.SAFE.getLevel()) {
+                // Handle detected threats
+                threatAlerts.offer(protocolData);
+                handleThreat(protocolData);
             }
-            // Detailed log
-            networkLogger.logPacket(packet);
+
         } catch (Exception e) {
             logger.error("Error processing packet", e);
         }
@@ -165,6 +169,7 @@ public class PacketCaptureManager {
 
         if (handle != null) {
             handle.close();
+            handle = null;
         }
 
         if (executor != null) {
@@ -177,6 +182,7 @@ public class PacketCaptureManager {
                 executor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
+            executor = null;
         }
 
         logger.info("Network capture stopped");
@@ -200,5 +206,12 @@ public class PacketCaptureManager {
                 .map(PacketDTO::getLength)
                 .map(length -> (double) length)
                 .collect(Collectors.toList());
+    }
+
+    public void clearCapturedData() {
+        capturedPackets.clear();
+        threatAlerts.clear();
+        totalPackets.set(0);
+        totalPacketSize.set(0);
     }
 }

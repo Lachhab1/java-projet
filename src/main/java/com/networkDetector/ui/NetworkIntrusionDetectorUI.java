@@ -1,12 +1,10 @@
 package com.networkDetector.ui;
 
 import com.networkDetector.NetworkIntrusionDetector;
+import com.networkDetector.model.FilterConfig;
 import com.networkDetector.protocol.model.ProtocolData;
 import com.networkDetector.protocol.model.ThreatLevel;
 import com.networkDetector.storage.PacketDTO;
-
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -20,11 +18,11 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
-import javafx.util.Duration;
-import org.pcap4j.core.PcapNetworkInterface;
 import org.pcap4j.core.PcapNativeException;
+import org.pcap4j.core.PcapNetworkInterface;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class NetworkIntrusionDetectorUI extends Application {
@@ -38,6 +36,8 @@ public class NetworkIntrusionDetectorUI extends Application {
     private AtomicInteger xSeriesData = new AtomicInteger(0);
     private Label statusLabel;
     private ComboBox<NetworkInterfaceItem> interfaceSelector;
+    private ListView<String> blockedIPsListView;
+    private TextField addIPTextField;
 
     private static class NetworkInterfaceItem {
         private final PcapNetworkInterface networkInterface;
@@ -83,7 +83,11 @@ public class NetworkIntrusionDetectorUI extends Application {
             Tab alertsTab = new Tab("Alerts", createAlertsPane());
             alertsTab.setClosable(false);
 
-            tabPane.getTabs().addAll(livePacketsTab, statisticsTab, alertsTab);
+            // Suspicious IPs Tab
+            Tab suspiciousIPsTab = new Tab("Suspicious IPs", createSuspiciousIPsPane());
+            suspiciousIPsTab.setClosable(false);
+
+            tabPane.getTabs().addAll(livePacketsTab, statisticsTab, alertsTab, suspiciousIPsTab);
             mainLayout.setCenter(tabPane);
 
             // Status Bar
@@ -158,7 +162,10 @@ public class NetworkIntrusionDetectorUI extends Application {
         stopButton.setOnAction(event -> {
             new Thread(() -> {
                 detector.stop();
-                Platform.runLater(() -> statusLabel.setText("Capture stopped"));
+                Platform.runLater(() -> {
+                    statusLabel.setText("Capture stopped");
+                    populateInterfaceComboBox();
+                });
             }).start();
         });
 
@@ -247,8 +254,9 @@ public class NetworkIntrusionDetectorUI extends Application {
 
         statsPane.getChildren().addAll(
                 trafficChart,
-                statsLabel,
-                statsGrid);
+                statsLabel
+        // statsGrid
+        );
 
         return statsPane;
     }
@@ -304,6 +312,55 @@ public class NetworkIntrusionDetectorUI extends Application {
         return alertsPane;
     }
 
+    private VBox createSuspiciousIPsPane() {
+        VBox suspiciousIPsPane = new VBox(10);
+        suspiciousIPsPane.setPadding(new Insets(10));
+
+        // Blocked IPs List
+        blockedIPsListView = new ListView<>();
+        updateBlockedIPsListView();
+
+        // Add IP TextField and Button
+        HBox addIPBox = new HBox(10);
+        addIPTextField = new TextField();
+        addIPTextField.setPromptText("Enter IP to block");
+        Button addIPButton = new Button("Block IP");
+        addIPButton.setOnAction(event -> {
+            String ip = addIPTextField.getText();
+            if (ip != null && !ip.isEmpty()) {
+                FilterConfig.blockIP(ip);
+                updateBlockedIPsListView();
+                addIPTextField.clear();
+            }
+        });
+
+        addIPBox.getChildren().addAll(addIPTextField, addIPButton);
+
+        // Unblock IP Button
+        Button unblockIPButton = new Button("Unblock Selected IP");
+        unblockIPButton.setOnAction(event -> {
+            String selectedIP = blockedIPsListView.getSelectionModel().getSelectedItem();
+            if (selectedIP != null) {
+                FilterConfig.unblockIP(selectedIP);
+                updateBlockedIPsListView();
+            }
+        });
+
+        suspiciousIPsPane.getChildren().addAll(
+                new Label("Blocked IPs"),
+                blockedIPsListView,
+                addIPBox,
+                unblockIPButton);
+
+        return suspiciousIPsPane;
+    }
+
+    private void updateBlockedIPsListView() {
+        Set<String> blockedIPs = FilterConfig.getBlockedIPs();
+        ObservableList<String> blockedIPsList = FXCollections.observableArrayList(blockedIPs);
+        blockedIPsListView.setItems(blockedIPsList);
+    }
+
     private <T> TableColumn<ProtocolData, T> createColumn(String title, String property, double width) {
         TableColumn<ProtocolData, T> column = new TableColumn<>(title);
         column.setCellValueFactory(new PropertyValueFactory<>(property));
@@ -336,19 +393,22 @@ public class NetworkIntrusionDetectorUI extends Application {
 
         // Update statistics
         String stats = detector.getStatistics();
+        // first remove the text for stats and replace it
         statsLabel.setText(stats);
 
         // Update traffic chart
-        // List<Double> trafficData = detector.getTrafficData();
+        List<Double> trafficData = detector.getTrafficData();
         // for (Double dataPoint : trafficData) {
         // trafficSeries.getData().add(new XYChart.Data<>(xSeriesData.getAndIncrement(),
         // dataPoint));
         // }
-        // fake data for testing
-        double fakeDataPoint = Math.random() * 100;
-        trafficSeries.getData().add(new XYChart.Data<>(xSeriesData.getAndIncrement(), fakeDataPoint));
-
-        // Remove old data points to prevent memory issues
+        //
+        // // Remove old data points to prevent memory issues
+        // if (trafficSeries.getData().size() > 50) {
+        // trafficSeries.getData().remove(0);
+        // }
+        // fake chart with stable data
+        trafficSeries.getData().add(new XYChart.Data<>(xSeriesData.getAndIncrement(), 100));
         if (trafficSeries.getData().size() > 50) {
             trafficSeries.getData().remove(0);
         }
@@ -366,6 +426,7 @@ public class NetworkIntrusionDetectorUI extends Application {
         trafficSeries.getData().clear();
         xSeriesData.set(0);
         statusLabel.setText("Data cleared");
+        detector.clearCapturedData();
     }
 
     private void showError(String title, String message) {

@@ -46,7 +46,7 @@ public class ThreatDetector {
                     return new ThreatInfo(ThreatLevel.LOW, "No threat detected");
             }
         } catch (Exception e) {
-            return new ThreatInfo(ThreatLevel.CRITICAL, "Error during threat detection: ");
+            return new ThreatInfo(ThreatLevel.CRITICAL, "Error during threat detection: " + e.getMessage());
         }
     }
 
@@ -165,12 +165,15 @@ public class ThreatDetector {
         if (tcpPacket != null && tcpPacket.getHeader().getDstPort().equals(TcpPort.TELNET)) {
             if (tcpPacket.getPayload() != null) {
                 String payload = new String(tcpPacket.getPayload().getRawData());
-                if (payload.contains("LOGIN") && payload.contains("admin")) {
+                // log the payload to see if it contains the login
+                System.out.println(payload);
+                if (payload.contains("admin")) {
                     return new ThreatInfo(ThreatLevel.HIGH, "Unauthorized Telnet login attempt detected");
                 }
             }
         }
-        return new ThreatInfo(ThreatLevel.LOW, "No threat detected");
+//        return new ThreatInfo(ThreatLevel.LOW, "No threat detected");
+        return new ThreatInfo(ThreatLevel.HIGH, "Unauthorized Telnet login attempt detected");
     }
 
     private ThreatInfo detectSshThreat(Packet packet) {

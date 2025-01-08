@@ -1,0 +1,15 @@
+pandas
+numpy
+tldextract
+scikit-learn
+python-whois
+flask
+supabase
+flask_cors
+python-dotenv
+wordcloud
+seaborn
+google-auth-oauthlib
+google-auth
+google-api-python-client
+google

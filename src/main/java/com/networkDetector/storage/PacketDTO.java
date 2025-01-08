@@ -1,11 +1,8 @@
-// PacketDTO.java
 package com.networkDetector.storage;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.pcap4j.packet.IpV4Packet;
 import org.pcap4j.packet.Packet;
-import org.pcap4j.packet.TcpPacket;
-import org.pcap4j.packet.UdpPacket;
 
 public class PacketDTO {
     private final String timestamp;
@@ -17,6 +14,8 @@ public class PacketDTO {
     private final Long length;
     private final String packetType;
     private final String payload;
+    @JsonIgnore
+    private final transient Packet packet;
 
     public PacketDTO(
             @JsonProperty("timestamp") String timestamp,
@@ -27,7 +26,8 @@ public class PacketDTO {
             @JsonProperty("destinationPort") Integer destinationPort,
             @JsonProperty("length") Long length,
             @JsonProperty("packetType") String packetType,
-            @JsonProperty("payload") String payload) {
+            @JsonProperty("payload") String payload,
+            Packet packet) {
         this.timestamp = timestamp;
         this.protocol = protocol;
         this.sourceAddress = sourceAddress;
@@ -37,6 +37,7 @@ public class PacketDTO {
         this.length = length;
         this.packetType = packetType;
         this.payload = payload;
+        this.packet = packet;
     }
 
     // Getters
@@ -76,22 +77,9 @@ public class PacketDTO {
         return payload;
     }
 
-    // get size of packet
-    public int getSize() {
-        return length.intValue();
-    }
-
-    // get packet type
-    public String getPacketType(Packet packet) {
-        if (packet instanceof TcpPacket) {
-            return "TCP";
-        } else if (packet instanceof UdpPacket) {
-            return "UDP";
-        } else if (packet instanceof IpV4Packet) {
-            return "IPV4";
-        } else {
-            return "UNKNOWN";
-        }
+    @JsonIgnore
+    public Packet getPacket() {
+        return packet;
     }
 
     @Override
