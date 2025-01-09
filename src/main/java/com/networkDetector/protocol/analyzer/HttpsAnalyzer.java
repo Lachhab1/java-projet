@@ -33,6 +33,7 @@ public class HttpsAnalyzer {
                 // Check for other HTTPS threats
                 if (payload.contains("GET /admin") || payload.contains("POST /admin")) {
                     return new ThreatInfo(ThreatLevel.MEDIUM, "Potential admin access detected");
+                }
             }
         }
         return new ThreatInfo(ThreatLevel.LOW, "No threat detected");
