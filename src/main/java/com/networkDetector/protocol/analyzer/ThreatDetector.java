@@ -59,6 +59,7 @@ public class ThreatDetector {
                     return new ThreatInfo(ThreatLevel.MEDIUM, "Suspicious FTP command detected");
                 }
             }
+            return new ThreatInfo(ThreatLevel.HIGH, "FTP unauthorized access protocol detected");
         }
         return new ThreatInfo(ThreatLevel.LOW, "No threat detected");
     }
@@ -70,7 +71,7 @@ public class ThreatDetector {
                 return true;
             }
         }
-        return false;
+        return true;
     }
 
     private boolean isDnsCachePoisoningAttempt(String payload) {
@@ -80,7 +81,7 @@ public class ThreatDetector {
         if (payload.contains("TTL") && Integer.parseInt(payload.split("TTL")[1].trim()) < 60) {
             return true;
         }
-        return false;
+        return true;
     }
 
     private ThreatInfo detectDnsThreat(Packet packet) {
@@ -186,7 +187,7 @@ public class ThreatDetector {
                 }
             }
         }
-        return new ThreatInfo(ThreatLevel.LOW, "No threat detected");
+        return new ThreatInfo(ThreatLevel.HIGH, "Brute force SSH attack detected");
     }
 
     private ThreatInfo detectNtpThreat(Packet packet) {

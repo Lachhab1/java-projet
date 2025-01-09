@@ -30,9 +30,9 @@ public class HttpsAnalyzer {
                     return new ThreatInfo(ThreatLevel.HIGH, "XSS attack detected");
                 }
 
-                // Additional HTTPS-specific checks can be added here
-                // For example, checking for certificate validity, known malicious patterns,
-                // etc.
+                // Check for other HTTPS threats
+                if (payload.contains("GET /admin") || payload.contains("POST /admin")) {
+                    return new ThreatInfo(ThreatLevel.MEDIUM, "Potential admin access detected");
             }
         }
         return new ThreatInfo(ThreatLevel.LOW, "No threat detected");
